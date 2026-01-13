@@ -8,6 +8,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+
+
 static shm_data_t *shm = NULL;
 static sem_t *sem = NULL;
 
@@ -83,5 +85,35 @@ void ipc_cleanup(int unlink_all) {
     if (unlink_all) {
         shm_unlink(SHM_NAME);
         sem_unlink(SEM_NAME);
+    }
+}
+
+static sem_t *sem_klienci = NULL;
+
+int sem_limit_init(int create, int limit) {
+    if (create) {
+        sem_klienci = sem_open(SEM_LIMIT_NAME, O_CREAT, 0666, limit);
+    } else {
+        sem_klienci = sem_open(SEM_LIMIT_NAME, 0);
+    }
+
+    if (sem_klienci == SEM_FAILED) {
+        perror("sem_open");
+        return -1;
+    }
+    return 0;
+}
+
+sem_t* sem_limit_get() {
+    return sem_klienci;
+}
+
+void sem_limit_cleanup(int unlink_all) {
+    if (sem_klienci) {
+        sem_close(sem_klienci);
+        sem_klienci = NULL;
+    }
+    if (unlink_all) {
+        sem_unlink(SEM_LIMIT_NAME);
     }
 }
