@@ -3,6 +3,7 @@
 
 #define SHM_NAME "/ciastkarnia_shm"
 #define SEM_NAME "/ciastkarnia_sem"
+#define SEM_LIMIT_NAME "/ciastkarnia_sem_limit"
 
 #define MAX_PRODUKTOW 12
 #define MAX_KAS 2
@@ -27,6 +28,6 @@ sem_t* ipc_get_sem();
 void ipc_cleanup(int unlink_all);
 
 /* semafor ograniczający liczbę klientów w sklepie */
-int sem_limit_init(int create);
-sem_t* sem_limit_get();
-void sem_limit_cleanup(int unlink_all);
+int sem_klientlimit_init(int create, int limit);
+sem_t* sem_klientlimit_get();
+void sem_klientlimit_cleanup(int unlink_all);

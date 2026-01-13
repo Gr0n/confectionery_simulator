@@ -7,6 +7,7 @@
 #include <time.h>
 
 #include "ipc.h"
+#include "logger.h"
 
 #define LICZBA_KAS 2
 #define D_MAX_LICZBA_KLIENTOW 10
@@ -21,12 +22,28 @@ int CZAS_TRWANIA = D_CZAS_TRWANIA;
 
 pid_t piekarz_pid;
 pid_t kasjer_pid[LICZBA_KAS];
-pid_t klient_pid[LICZBA_KLIENTOW];
+pid_t klient_pid[32]; // max 32 klientów
 
 shm_data_t *shm;
 sem_t *sem;
 
 sem_t *klient_sem;
+
+void tick() {
+    int rand_num = rand() % 100;
+}
+
+
+void stworz_klienta() {
+    klient_pid[LICZBA_KLIENTOW++] = fork();
+    if (klient_pid[LICZBA_KLIENTOW - 1] == 0) {
+        execl("./klient", "klient", NULL);
+        perror("Bład uruchamiania klientów");
+        exit(1);
+    }
+    //sem_wait(klient_sem); przesunac na klienta
+
+}
 
 /* ================= SYGNALY ================= */
 
@@ -102,16 +119,16 @@ int main() {
 
     shm = ipc_get_shm();
     sem = ipc_get_sem();
-    klient_sem = sem_limit_get();
-    /* ===== PIEKARZ ===== */
+    klient_sem = sem_klientlimit_get();
+    /* ===== PIEKARZ ===== 
     piekarz_pid = fork();
     if (piekarz_pid == 0) {
         execl("./piekarz", "piekarz", NULL);
         perror("Bład uruchamiania piekarza");
         exit(1);
     }
-
-    /* ===== KASJERZY ===== */
+    */
+    /* ===== KASJERZY ===== 
     for (int i = 0; i < LICZBA_KAS; i++) {
         kasjer_pid[i] = fork();
         if (kasjer_pid[i] == 0) {
@@ -122,16 +139,16 @@ int main() {
             exit(1);
         }
     }
-
+    */
 
     /* ===== SYMULACJA CZASU ===== */
-    int czas_symulacji = CZAS_TRWANIA * 60; // w minutach
+    int czas_symulacji = CZAS_TRWANIA * 6; // w 10 minutach
     for (int t = 0; t < czas_symulacji; t++) {
-        sleep(1); // 1 sekunda rzeczywista = 1 minuta symulacyjna
+        sleep(0.1); // 1 sekunda rzeczywista = 1 minuta symulacyjna
 
-        sem_wait(sem);
-        shm->aktualny_czas = START_TIME + t;
-        sem_post(sem);
+        //sem_wait(sem);
+        //shm->aktualny_czas = START_TIME + t;
+        //sem_post(sem);
 
         tick();
 
@@ -172,18 +189,3 @@ int main() {
 }
 
 
-void tick() {
-    int rand_num = rand() % 100;
-}
-
-
-void stworz_klienta() {
-    klient_pid[LICZBA_KLIENTOW++] = fork();
-    if (klient_pid[LICZBA_KLIENTOW - 1] == 0) {
-        execl("./klient", "klient", NULL);
-        perror("Bład uruchamiania klientów");
-        exit(1);
-    }
-    //sem_wait(klient_sem); przesunac na klienta
-
-}
