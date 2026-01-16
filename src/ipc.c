@@ -1,125 +1,134 @@
-#define _XOPEN_SOURCE 700
 #include "ipc.h"
 
-#include <fcntl.h>
-#include <sys/mman.h>
-#include <unistd.h>
-#include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>      // O_CREAT, O_RDWR
+#include <sys/mman.h>   // mmap, shm_open
+#include <semaphore.h>
+#include <errno.h>
 
+/* ========================= GLOBALNE ========================= */
+shm_data_t *shm = NULL;
+int shm_fd = -1;
 
+sem_t *sem_mem = NULL;
+sem_t *sem_klient = NULL;
 
-static shm_data_t *shm = NULL;
-static sem_t *sem = NULL;
-
-
-//IPC klient
-static sem_t *sem_klienci = NULL;
+/* ========================= Semafory ========================= */
 
 int sem_klientlimit_init(int create, int limit) {
     if (create) {
-        sem_klienci = sem_open(SEM_LIMIT_NAME, O_CREAT, 0666, limit);
+        sem_klient = sem_open(SEM_KLIENT_NAME, O_CREAT | O_EXCL, 0666, limit);
+        if (sem_klient == SEM_FAILED) {
+            if (errno == EEXIST) {
+                sem_klient = sem_open(SEM_KLIENT_NAME, 0);
+            } else {
+                perror("sem_open create klient");
+                return -1;
+            }
+        }
     } else {
-        sem_klienci = sem_open(SEM_LIMIT_NAME, 0);
-    }
-
-    if (sem_klienci == SEM_FAILED) {
-        perror("sem_open");
-        return -1;
+        sem_klient = sem_open(SEM_KLIENT_NAME, 0);
+        if (sem_klient == SEM_FAILED) { perror("sem_open get klient"); return -1; }
     }
     return 0;
 }
 
-sem_t* sem_klientlimit_get() {
-    return sem_klienci;
+int sem_klientlimit_wait(void) {
+    if (!sem_klient) return -1;
+    return sem_wait(sem_klient);
 }
 
-void sem_klientlimit_cleanup(int unlink_all) {
-    if (sem_klienci) {
-        sem_close(sem_klienci);
-        sem_klienci = NULL;
-    }
-    if (unlink_all) {
-        sem_unlink(SEM_LIMIT_NAME);
+int sem_klientlimit_post(void) {
+    if (!sem_klient) return -1;
+    return sem_post(sem_klient);
+}
+
+void sem_klientlimit_cleanup(int remove_all) {
+    if (sem_klient) {
+        sem_close(sem_klient);
+        if (remove_all) sem_unlink(SEM_KLIENT_NAME);
+        sem_klient = NULL;
     }
 }
 
+/* ========================= Pamięć współdzielona ========================= */
 
-
-//IPC pamięć współdzielona
 int ipc_init(int create) {
-    int fd;
-
+    /* Tworzenie lub otwarcie SHM */
     if (create) {
-        fd = shm_open(SHM_NAME, O_CREAT | O_RDWR, 0666);
-        if (fd == -1) {
-            perror("shm_open create");
-            return -1;
-        }
+        shm_fd = shm_open(SHM_NAME, O_CREAT | O_RDWR, 0666);
+        if (shm_fd == -1) { perror("shm_open create"); return -1; }
 
-        if (ftruncate(fd, sizeof(shm_data_t)) == -1) {
-            perror("ftruncate");
-            return -1;
+        if (ftruncate(shm_fd, sizeof(shm_data_t)) == -1) {
+            perror("ftruncate"); return -1;
         }
     } else {
-        fd = shm_open(SHM_NAME, O_RDWR, 0666);
-        if (fd == -1) {
-            perror("shm_open open");
-            return -1;
-        }
+        shm_fd = shm_open(SHM_NAME, O_RDWR, 0666);
+        if (shm_fd == -1) { perror("shm_open open"); return -1; }
     }
 
     shm = mmap(NULL, sizeof(shm_data_t),
                PROT_READ | PROT_WRITE,
-               MAP_SHARED, fd, 0);
+               MAP_SHARED, shm_fd, 0);
+    if (shm == MAP_FAILED) { perror("mmap"); return -1; }
 
-    if (shm == MAP_FAILED) {
-        perror("mmap");
-        return -1;
-    }
-
+    /* Zerowanie danych tylko przy tworzeniu */
     if (create) {
         memset(shm, 0, sizeof(shm_data_t));
         shm->sklep_otwarty = 1;
     }
 
+    /* Semafor pamięci */
     if (create) {
-        sem = sem_open(SEM_NAME, O_CREAT, 0666, 1);
+        sem_mem = sem_open(SEM_MEM_NAME, O_CREAT | O_EXCL, 0666, 1);
+        if (sem_mem == SEM_FAILED) {
+            if (errno == EEXIST) {
+                sem_mem = sem_open(SEM_MEM_NAME, 0);
+            } else {
+                perror("sem_open create mem"); return -1;
+            }
+        }
     } else {
-        sem = sem_open(SEM_NAME, 0);
-    }
-
-    if (sem == SEM_FAILED) {
-        perror("sem_open");
-        return -1;
+        sem_mem = sem_open(SEM_MEM_NAME, 0);
+        if (sem_mem == SEM_FAILED) { perror("sem_open get mem"); return -1; }
     }
 
     return 0;
 }
 
-shm_data_t* ipc_get_shm() {
+shm_data_t* ipc_get_shm(void) {
     return shm;
 }
 
-sem_t* ipc_get_sem() {
-    return sem;
+/* Operacje na semaforze pamięci */
+void sem_wait_mem(void) {
+    if (sem_mem) sem_wait(sem_mem);
 }
 
-void ipc_cleanup(int unlink_all) {
+void sem_post_mem(void) {
+    if (sem_mem) sem_post(sem_mem);
+}
+
+void ipc_cleanup(int remove_all) {
     if (shm) {
         munmap(shm, sizeof(shm_data_t));
         shm = NULL;
     }
 
-    if (sem) {
-        sem_close(sem);
-        sem = NULL;
+    if (shm_fd != -1) {
+        close(shm_fd);
+        if (remove_all) shm_unlink(SHM_NAME);
+        shm_fd = -1;
     }
 
-    if (unlink_all) {
-        shm_unlink(SHM_NAME);
-        sem_unlink(SEM_NAME);
+    if (sem_mem) {
+        sem_close(sem_mem);
+        if (remove_all) sem_unlink(SEM_MEM_NAME);
+        sem_mem = NULL;
     }
+
+    sem_klientlimit_cleanup(remove_all);
 }
-
