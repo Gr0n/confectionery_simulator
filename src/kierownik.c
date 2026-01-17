@@ -8,16 +8,18 @@
 #include <string.h>
 #include "podajnik.h"
 #include "ipc.h"
-
+#include "logger.h"
 #define LICZBA_KAS 2
-#define D_MAX_LICZBA_KLIENTOW 10
+#define D_MAX_LICZBA_KLIENTOW 64
 #define D_PRODUKTOW 10
-#define D_CZAS_TRWANIA 8
-#define START_TIME 100  // 8:00 AM
-
+#define D_CZAS_TRWANIA 32
+#define START_TIME 800  // 8:00 AM
+#define NAME "KIEROWNIK"
 int LICZBA_KLIENTOW = D_MAX_LICZBA_KLIENTOW;
 int ILOSC_PRODUKTOW = D_PRODUKTOW;
 int CZAS_TRWANIA = D_CZAS_TRWANIA;
+int aktywne_procesy = 0;
+
 
 pid_t piekarz_pid;
 pid_t kasjer_pid[LICZBA_KAS];
@@ -46,11 +48,13 @@ void wyslij_ewakuacje() {
     sem_post_mem();
 
     kill(piekarz_pid, SIGUSR2);
+    /*
     for (int i = 0; i < LICZBA_KAS; i++)
         kill(kasjer_pid[i], SIGUSR2);
 
     for (int i = 0; i < LICZBA_KLIENTOW; i++)
         kill(klient_pid[i], SIGUSR2);
+    */
 }
 
 /* =========================== FUNKCJE =========================== */
@@ -70,6 +74,7 @@ void stworz_klienta(int indeks) {
         perror("Błąd uruchamiania klienta");
         exit(1);
     }
+    aktywne_procesy++;
 }
 
 /* =========================== MENU =========================== */
@@ -112,13 +117,17 @@ void menu() {
 int main() {
 
     printf("[KIEROWNIK] Start procesu\n");
+    loguj(NAME, "Start procesu");
     menu();
-    printf("[KIEROWNIK] Symulacja: czas trwania=%d godzin, pojemność sklepu=%d, ilość produktów=%d\n",
+    char buffer[256];
+    sprintf(buffer, "[KIEROWNIK] Symulacja: czas trwania=%d godzin, pojemność sklepu=%d, ilość produktów=%d\n",
            CZAS_TRWANIA, LICZBA_KLIENTOW, ILOSC_PRODUKTOW);
-
+    printf("%s", buffer);
+    loguj(NAME, buffer);
     /* ===== INICJALIZACJA IPC ===== */
     if (ipc_init(1) == -1) {
         fprintf(stderr, "Błąd inicjalizacji IPC\n");
+        loguj(NAME, "Błąd inicjalizacji IPC");
         exit(1);
     }
 
@@ -129,6 +138,7 @@ int main() {
     /* ===== SEMAFOR LIMITU KLIENTÓW ===== */
     if (sem_klientlimit_init(1, LICZBA_KLIENTOW) == -1) {
         fprintf(stderr, "Błąd inicjalizacji semafora limitu klientów\n");
+        loguj(NAME, "Błąd inicjalizacji semafora limitu klientów");
         exit(1);
     }
 
@@ -149,11 +159,12 @@ int main() {
     if (piekarz_pid == 0) {
         execl("./piekarz", "piekarz", NULL);
         perror("Błąd uruchamiania piekarza");
+        loguj(NAME, "Błąd uruchamiania piekarza");
         exit(1);
     }
+    aktywne_procesy++;
+   
 
-
-    
     /* ===== KASJERZY ===== 
     for (int i = 0; i < LICZBA_KAS; i++) {
         kasjer_pid[i] = fork();
@@ -164,25 +175,47 @@ int main() {
             perror("Błąd uruchamiania kasjera");
             exit(1);
         }
+        aktywne_procesy++;
     }
     */
+
+    
     /* ===== SYMULACJA CZASU ===== */
-    int czas_symulacji = CZAS_TRWANIA * 6; // w 10 minutach
+    int czas_symulacji = CZAS_TRWANIA * 10; // w 10 minutach
     for (int t = 0; t < czas_symulacji; t++) {
         //usleep(100000); // 0.1 sekundy = 1 minuta symulacyjna
-
+        loguj(NAME, "wait mem");
         sem_wait_mem();
+        shm->aktualna_liczba_procesow = aktywne_procesy;
         shm->aktualny_czas = START_TIME + t;
         sem_post_mem();
+        sprintf(buffer, "[KIEROWNIK] Czas symulacji: %02d:%02d\n",
+               (shm->aktualny_czas) / 60, (shm->aktualny_czas) % 60);
+        printf("%s", buffer);
+        loguj(NAME, buffer);
+        // START TURY
+        loguj(NAME, "semtickstart postpre");
+        for(int i=0; i<aktywne_procesy+1; i++){
+            sem_tick_start_post();
+            loguj(NAME, "semtickstart post");
+        }
 
+        // CZEKAJ NA ZAKOŃCZENIE TURY
+        for(int i=0; i<aktywne_procesy; i++){
+            sem_tick_done_wait();
+            loguj(NAME, "semtick done wait");
+        }
         tick();
     }
     /*
     sleep(2);
     wyslij_inwentaryzacje();
     sleep(2);
-    wyslij_ewakuacje();
     */
+    //sleep(0);
+    //wyslij_ewakuacje();
+    
+    loguj(NAME, "wait mem close shop");
     sem_wait_mem();
     shm->sklep_otwarty = 0;
     sem_post_mem();
@@ -193,19 +226,26 @@ int main() {
         wait(NULL);
     }
     /* ===== RAPORT KOŃCOWY ===== */
-    printf("\n[KIEROWNIK] RAPORT KOŃCOWY\n");
+    
+    sprintf(buffer, "\n[KIEROWNIK] RAPORT KOŃCOWY\n");
+    printf("%s", buffer);
+    loguj(NAME, buffer);
     for (int p = 0; p < ILOSC_PRODUKTOW; p++) {
         int sprzedano = 0;
         for (int k = 0; k < LICZBA_KAS; k++)
             sprzedano += shm->sprzedane[k][p];
 
-        printf("Produkt %d: wyprodukowano=%d sprzedano=%d\n",
+        sprintf(buffer, "Produkt %d: wyprodukowano=%d sprzedano=%d\n",
                p, shm->wyprodukowane[p], sprzedano);
+        printf("%s", buffer);
+        loguj(NAME, buffer);
     }
 
     /* ===== SPRZĄTANIE IPC ===== */
     ipc_cleanup(1);
 
-    printf("[KIEROWNIK] Koniec\n");
+    sprintf(buffer,"[KIEROWNIK] Koniec\n");
+    printf("%s", buffer);
+    loguj(NAME, buffer);
     return 0;
 }

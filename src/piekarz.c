@@ -9,15 +9,22 @@
 #include "logger.h"
 #include "podajnik.h"
 
-/* Globalna tablica podajników */
-podajnik_t podajniki[D_PRODUKTOW];
-
-
 static volatile sig_atomic_t inwentaryzacja = 0;
 static volatile sig_atomic_t ewakuacja = 0;
 
 sem_t *sem;
 
+produkt_t produkty[10] = {{0, "Rogalik", 2},
+{1, "Herbatnik", 1},
+{2, "Babeczka", 5},
+{3, "Karpatka", 8},
+{4, "Wafel", 1},
+{5, "Makaronik", 8},
+{6, "Ptyś", 7},
+{7, "Biszkopcik", 6},
+{8, "Pierniczek", 3},
+{9, "Sezamka", 4}};
+//shm_data_t *shm;
 void sig_inwentaryzacja(int sig) {
     (void)sig;
     inwentaryzacja = 1;
@@ -34,7 +41,7 @@ void sig_ewakuacja(int sig) {
 
 /* Dodaj produkt na podajnik FIFO */
 int dodaj_produkt(produkt_t produkt) {
-    return podajnik_push_shm(&podajniki[produkt.id], &produkt);  // 1 sztuka
+    return podajnik_push_shm(&shm->podajniki[produkt.id], &produkt);  // 1 sztuka
 }
 
 /* Funkcja główna piekarza */
@@ -43,44 +50,40 @@ int main() {
 
     signal(SIGUSR1, sig_inwentaryzacja);
     signal(SIGUSR2, sig_ewakuacja);
-
+    
     if (ipc_init(0) == -1) {
         perror("ipc_init piekarz");
         exit(1);
     }
 
     shm = ipc_get_shm();
-    for(int p = 0; p < D_PRODUKTOW; p++){
-        podajnik_init_shm(&shm->podajniki[p]);
-    }
-
-    // Inicjalizacja FIFO
-    for (int i = 0; i < D_PRODUKTOW; i++) {
-        podajniki[i].head = 0;
-        podajniki[i].tail = 0;
-        podajniki[i].count = 0;
-    }
 
     loguj("PIEKARZ", "Start pracy piekarza");
 
-    while (!ewakuacja) {
-        produkt_t test_produkt1 = {0, "Rogalik", 5};
+    while (!ewakuacja && shm->sklep_otwarty) {
+        loguj("PIEKARZ", "presemtickstartwait");
+        sem_tick_start_wait();
+        loguj("PIEKARZ", "semtickstartwait");
         int sztuk = 1 + rand() % 3; // losowa liczba sztuk
-
-        sem_wait(sem); // ochrona pamięci
+        int produkt_index = rand() % 10; // losowy produkt
+        produkt_t produkt = produkty[produkt_index];
+        sem_wait_mem(); // ochrona pamięci
 
         for (int i = 0; i < sztuk; i++) {
-            if (dodaj_produkt(test_produkt1) == 0) {
-                shm->wyprodukowane[test_produkt1.id]++;
+            if (dodaj_produkt(produkt) == 0) {
+                shm->wyprodukowane[produkt.id]++;
                 char buf[64];
-                sprintf(buf, "Wyprodukowano produkt %s\n", test_produkt1.name);
+                sprintf(buf, "Wyprodukowano produkt %s\n", produkt.name);
                 loguj("PIEKARZ", buf);
             }
         }
-
-        sem_post(sem);
-
-        sleep(1); // czas pieczenia
+        
+        sem_post_mem();
+        loguj("PIEKARZ", "sempostmem");
+        sem_tick_done_post();
+        loguj("PIEKARZ", "semtickdonepost");
+        //tick_end(shm->aktualna_liczba_procesow);
+        //sleep(0.1); 
     }
 
     loguj("PIEKARZ", "Koniec pracy - ewakuacja");
