@@ -2,24 +2,20 @@
 #include <stdio.h>
 #include <time.h>
 #include <unistd.h>
-
 #include "ipc.h"
 
-#define LOG_FILE "symulacja.log"
+#define LOG_FILE "log"
 
 void loguj(const char *proces, const char *tekst) {
     FILE *f;
     time_t t;
     struct tm *tm_info;
-
-    sem_t *sem = ipc_get_sem();
-
     /* SEKCJA KRYTYCZNA */
-    sem_wait(sem);
+    sem_wait_logger();
 
     f = fopen(LOG_FILE, "a");
     if (!f) {
-        sem_post(sem);
+        sem_post_logger();
         return;
     }
 
@@ -39,5 +35,5 @@ void loguj(const char *proces, const char *tekst) {
     fflush(f);
     fclose(f);
 
-    sem_post(sem);
+    sem_post_logger();
 }

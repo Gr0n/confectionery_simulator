@@ -123,14 +123,28 @@ int main() {
     }
 
     shm = ipc_get_shm();
-
+    for(int p = 0; p < D_PRODUKTOW; p++){
+        podajnik_init_shm(&shm->podajniki[p]);
+    }
     /* ===== SEMAFOR LIMITU KLIENTÓW ===== */
     if (sem_klientlimit_init(1, LICZBA_KLIENTOW) == -1) {
         fprintf(stderr, "Błąd inicjalizacji semafora limitu klientów\n");
         exit(1);
     }
 
-    /* ===== PIEKARZ ===== 
+    produkt_t test_produkt1 = {0, "Rogalik", 5};
+    produkt_t test_produkt2 = {0, "Herbatnik", 5};
+
+    podajnik_push_shm(&shm->podajniki[0], &test_produkt1);
+    podajnik_push_shm(&shm->podajniki[1], &test_produkt2);
+
+    produkt_t pobrany;
+    podajnik_pop_shm(&shm->podajniki[0], &pobrany);
+    printf("Pobrano produkt: %s\n", pobrany.name);
+    podajnik_pop_shm(&shm->podajniki[1], &pobrany);
+    printf("Pobrano produkt: %s\n", pobrany.name);
+
+    
     piekarz_pid = fork();
     if (piekarz_pid == 0) {
         execl("./piekarz", "piekarz", NULL);
@@ -138,6 +152,8 @@ int main() {
         exit(1);
     }
 
+
+    
     /* ===== KASJERZY ===== 
     for (int i = 0; i < LICZBA_KAS; i++) {
         kasjer_pid[i] = fork();
@@ -173,8 +189,9 @@ int main() {
 
     /* ===== CZEKAJ NA DZIECI ===== */
     for (int i = 0; i < 1 + LICZBA_KAS + LICZBA_KLIENTOW; i++)
+    {
         wait(NULL);
-
+    }
     /* ===== RAPORT KOŃCOWY ===== */
     printf("\n[KIEROWNIK] RAPORT KOŃCOWY\n");
     for (int p = 0; p < ILOSC_PRODUKTOW; p++) {
