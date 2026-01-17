@@ -10,6 +10,23 @@ void podajnik_init(podajnik_t *p) {
     p->count = 0;
 }
 
+void podajnik_init_shm(podajnik_t *p) {
+    if (!p) return;
+
+    p->head = 0;
+    p->tail = 0;
+    p->count = 0;
+
+    // zerujemy tablicę dla bezpieczeństwa
+    memset(p->produkty, 0, sizeof(p->produkty));
+
+    // inicjalizacja mutexa dla wielu procesów
+    pthread_mutexattr_t attr;
+    pthread_mutexattr_init(&attr);
+    pthread_mutexattr_setpshared(&attr, PTHREAD_PROCESS_SHARED);
+    pthread_mutex_init(&p->mutex, &attr);
+}
+
 /* Push - dodaj ilość sztuk na koniec FIFO podajnika */
 int podajnik_push(podajnik_t *p, produkt_t produkt) {
     if (p->count == MAX_PODAJNIK)

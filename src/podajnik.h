@@ -25,10 +25,10 @@ typedef struct {
 
 
 void podajnik_init(podajnik_t *p);
-
+void podajnik_init_shm(podajnik_t *p);
 /* Push - dodaj ilość sztuk na koniec FIFO podajnika */
 int podajnik_push(podajnik_t *p, produkt_t produkt);
-
+int podajnik_push_shm(podajnik_t *p, const produkt_t *in);
 /* Pop - pobierz ilość sztuk z przodu FIFO podajnika; zwraca -1 jeśli pusty */
 int podajnik_pop(podajnik_t *p, produkt_t *out) ;
 int podajnik_pop_shm(podajnik_t *p, produkt_t *out);
