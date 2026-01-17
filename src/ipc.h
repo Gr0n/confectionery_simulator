@@ -16,9 +16,10 @@
 #define SHM_NAME "/shm_sklep"
 #define SEM_MEM_NAME "/sem_mem"
 #define SEM_KLIENT_NAME "/sem_klient"
-
+#define SEM_LOGGER_NAME "/sem_logger"
 /* ================= STRUKTURA PAMIĘCI WSPÓŁDZIELONEJ ================= */
 typedef struct {
+    podajnik_t podajniki[D_PRODUKTOW];
     int sklep_otwarty;             // 1 = otwarty, 0 = zamknięty
     int wyprodukowane[D_PRODUKTOW];
     int sprzedane[2][D_PRODUKTOW]; // sprzedane na kasach
@@ -27,9 +28,10 @@ typedef struct {
     int ewakuacja;
 } shm_data_t;
 
-extern shm_data_t *shm;   // deklaracja, nie tworzy zmiennej
+extern shm_data_t *shm;   
 extern sem_t *sem_mem;
 extern sem_t *sem_klient;
+extern sem_t *sem_logger;
 /* ========================= FUNKCJE IPC ========================= */
 
 /* ===== Pamięć współdzielona ===== */
@@ -40,6 +42,12 @@ void ipc_cleanup(int remove_all);    // odłącza i ewentualnie usuwa SHM/semafo
 /* ===== Semafor pamięci ===== */
 void sem_wait_mem(void);
 void sem_post_mem(void);
+
+/* ===== Semafor loggera ===== */
+int sem_logger_init(int create);
+void sem_wait_logger(void);
+void sem_post_logger(void);
+void sem_logger_cleanup(int remove_all);
 
 /* ===== Semafor limitu klientów ===== */
 int sem_klientlimit_init(int create, int limit);

@@ -15,7 +15,7 @@ int shm_fd = -1;
 
 sem_t *sem_mem = NULL;
 sem_t *sem_klient = NULL;
-
+sem_t *sem_logger = NULL;
 /* ========================= Semafory ========================= */
 
 int sem_klientlimit_init(int create, int limit) {
@@ -51,6 +51,46 @@ void sem_klientlimit_cleanup(int remove_all) {
         sem_close(sem_klient);
         if (remove_all) sem_unlink(SEM_KLIENT_NAME);
         sem_klient = NULL;
+    }
+}
+
+// Semafor loggera:
+
+int sem_logger_init(int create) {
+    if (create) {
+        sem_logger = sem_open(SEM_LOGGER_NAME, O_CREAT | O_EXCL, 0666, 1);
+        if (sem_logger == SEM_FAILED) {
+            if (errno == EEXIST) {
+                sem_logger = sem_open(SEM_LOGGER_NAME, 0);
+            } else {
+                perror("sem_open create logger");
+                return -1;
+            }
+        }
+
+    } else {
+        sem_logger = sem_open(SEM_LOGGER_NAME, 0);
+        if (sem_logger == SEM_FAILED) {
+            perror("sem_open get logger");
+            return -1;
+        }
+        
+    }
+}
+
+void sem_wait_logger(void) {
+    if (sem_logger) sem_wait(sem_logger);
+}
+
+void sem_post_logger(void) {
+    if (sem_logger) sem_post(sem_logger);
+}
+
+void sem_logger_cleanup(int remove_all) {
+    if (sem_logger) {
+        sem_close(sem_logger);
+        if (remove_all) sem_unlink(SEM_LOGGER_NAME);
+        sem_logger = NULL;
     }
 }
 
