@@ -22,7 +22,6 @@ int aktywne_procesy = 0;
 
 
 pid_t piekarz_pid;
-pid_t piekarz_pid_test;
 pid_t kasjer_pid[LICZBA_KAS];
 pid_t klient_pid[32]; // max 32 klientów
 
@@ -37,7 +36,6 @@ void wyslij_inwentaryzacje() {
     sem_post_mem();
 
     kill(piekarz_pid, SIGUSR1);
-    kill(piekarz_pid_test, SIGUSR1);
     for (int i = 0; i < LICZBA_KAS; i++)
         kill(kasjer_pid[i], SIGUSR1);
 }
@@ -50,7 +48,6 @@ void wyslij_ewakuacje() {
     sem_post_mem();
 
     kill(piekarz_pid, SIGUSR2);
-    kill(piekarz_pid_test, SIGUSR1);
     /*
     for (int i = 0; i < LICZBA_KAS; i++)
         kill(kasjer_pid[i], SIGUSR2);
@@ -160,14 +157,6 @@ int main() {
     
     piekarz_pid = fork();
     if (piekarz_pid == 0) {
-        execl("./piekarz", "piekarz", NULL);
-        perror("Błąd uruchamiania piekarza");
-        loguj(NAME, "Błąd uruchamiania piekarza");
-        exit(1);
-    }
-    aktywne_procesy++;
-    piekarz_pid_test = fork();
-    if (piekarz_pid_test == 0) {
         execl("./piekarz", "piekarz", NULL);
         perror("Błąd uruchamiania piekarza");
         loguj(NAME, "Błąd uruchamiania piekarza");
