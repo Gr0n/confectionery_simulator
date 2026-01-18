@@ -8,7 +8,7 @@
 #include "ipc.h"
 #include "logger.h"
 #include "podajnik.h"
-
+#define CZAS_GOTOWANIA 15 // czas gotowania w tickach
 static volatile sig_atomic_t inwentaryzacja = 0;
 static volatile sig_atomic_t ewakuacja = 0;
 
@@ -59,16 +59,36 @@ int main() {
     shm = ipc_get_shm();
 
     loguj("PIEKARZ", "Start pracy piekarza");
-
+    int cook_cd = 0;
     while (!ewakuacja && shm->sklep_otwarty) {
-        loguj("PIEKARZ", "presemtickstartwait");
+        //loguj("PIEKARZ", "starttickwait");
+        
         sem_tick_start_wait();
-        loguj("PIEKARZ", "semtickstartwait");
+        if (!(!ewakuacja && shm->sklep_otwarty))
+        {
+            break;
+        }
+       // loguj("PIEKARZ", "starttickcritical");
+        //loguj("PIEKARZ", "semtickstartwait");
         int sztuk = 1 + rand() % 3; // losowa liczba sztuk
         int produkt_index = rand() % 10; // losowy produkt
         produkt_t produkt = produkty[produkt_index];
         sem_wait_mem(); // ochrona pamięci
-
+        if (cook_cd > 0) {
+            cook_cd--;
+            sem_post_mem();
+            sem_tick_done_post();
+            continue; // czekaj na kolejny tick
+        }
+        if (shm->podajniki[produkt.id].count>=64) {
+            sem_post_mem();
+            char buf[64];
+            sprintf(buf, "Podajnik pełen: id %d\n", produkt.id);
+            loguj("PIEKARZ", buf);
+            sem_tick_done_post();
+            cook_cd = CZAS_GOTOWANIA; // ustaw czas gotowania
+            continue; // podajnik pełny, spróbuj później
+        }
         for (int i = 0; i < sztuk; i++) {
             if (dodaj_produkt(produkt) == 0) {
                 shm->wyprodukowane[produkt.id]++;
@@ -77,11 +97,11 @@ int main() {
                 loguj("PIEKARZ", buf);
             }
         }
-        
+        cook_cd = CZAS_GOTOWANIA; // ustaw czas gotowania
         sem_post_mem();
-        loguj("PIEKARZ", "sempostmem");
+        //loguj("PIEKARZ", "sempostmem");
         sem_tick_done_post();
-        loguj("PIEKARZ", "semtickdonepost");
+        //loguj("PIEKARZ", "semtickdonepost");
         //tick_end(shm->aktualna_liczba_procesow);
         //sleep(0.1); 
     }

@@ -22,6 +22,7 @@ int aktywne_procesy = 0;
 
 
 pid_t piekarz_pid;
+pid_t piekarz_pid_test;
 pid_t kasjer_pid[LICZBA_KAS];
 pid_t klient_pid[32]; // max 32 klientów
 
@@ -36,6 +37,7 @@ void wyslij_inwentaryzacje() {
     sem_post_mem();
 
     kill(piekarz_pid, SIGUSR1);
+    kill(piekarz_pid_test, SIGUSR1);
     for (int i = 0; i < LICZBA_KAS; i++)
         kill(kasjer_pid[i], SIGUSR1);
 }
@@ -48,6 +50,7 @@ void wyslij_ewakuacje() {
     sem_post_mem();
 
     kill(piekarz_pid, SIGUSR2);
+    kill(piekarz_pid_test, SIGUSR1);
     /*
     for (int i = 0; i < LICZBA_KAS; i++)
         kill(kasjer_pid[i], SIGUSR2);
@@ -163,7 +166,14 @@ int main() {
         exit(1);
     }
     aktywne_procesy++;
-   
+    piekarz_pid_test = fork();
+    if (piekarz_pid_test == 0) {
+        execl("./piekarz", "piekarz", NULL);
+        perror("Błąd uruchamiania piekarza");
+        loguj(NAME, "Błąd uruchamiania piekarza");
+        exit(1);
+    }
+    aktywne_procesy++;
 
     /* ===== KASJERZY ===== 
     for (int i = 0; i < LICZBA_KAS; i++) {
@@ -182,9 +192,9 @@ int main() {
     
     /* ===== SYMULACJA CZASU ===== */
     int czas_symulacji = CZAS_TRWANIA * 10; // w 10 minutach
-    for (int t = 0; t < czas_symulacji; t++) {
+    for (int t = 0; t < czas_symulacji; ++t) {
         //usleep(100000); // 0.1 sekundy = 1 minuta symulacyjna
-        loguj(NAME, "wait mem");
+        //loguj(NAME, "wait mem");
         sem_wait_mem();
         shm->aktualna_liczba_procesow = aktywne_procesy;
         shm->aktualny_czas = START_TIME + t;
@@ -194,16 +204,16 @@ int main() {
         printf("%s", buffer);
         loguj(NAME, buffer);
         // START TURY
-        loguj(NAME, "semtickstart postpre");
-        for(int i=0; i<aktywne_procesy+1; i++){
+        //loguj(NAME, "semtickstart postpre");
+        for(int i=0; i<aktywne_procesy; i++){
             sem_tick_start_post();
-            loguj(NAME, "semtickstart post");
+           // loguj(NAME, "semtickstart post");
         }
 
         // CZEKAJ NA ZAKOŃCZENIE TURY
         for(int i=0; i<aktywne_procesy; i++){
             sem_tick_done_wait();
-            loguj(NAME, "semtick done wait");
+           // loguj(NAME, "semtick done wait");
         }
         tick();
     }
@@ -215,15 +225,21 @@ int main() {
     //sleep(0);
     //wyslij_ewakuacje();
     
-    loguj(NAME, "wait mem close shop");
+    //loguj(NAME, "wait mem close shop");
     sem_wait_mem();
     shm->sklep_otwarty = 0;
     sem_post_mem();
-
+    //loguj(NAME, "end mem close shop");
     /* ===== CZEKAJ NA DZIECI ===== */
+    for (int i = 0; i < aktywne_procesy; i++) 
+    {
+    sem_tick_start_post();
+    }
     for (int i = 0; i < 1 + LICZBA_KAS + LICZBA_KLIENTOW; i++)
     {
+        //loguj(NAME, "waiting for child");
         wait(NULL);
+        //loguj(NAME, "child ended");
     }
     /* ===== RAPORT KOŃCOWY ===== */
     
