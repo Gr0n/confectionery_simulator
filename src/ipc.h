@@ -17,6 +17,9 @@
 #define SEM_MEM_NAME "/sem_mem"
 #define SEM_KLIENT_NAME "/sem_klient"
 #define SEM_LOGGER_NAME "/sem_logger"
+
+#define FIFO_KASA1 "/tmp/kasa1_fifo"
+#define FIFO_KASA2 "/tmp/kasa2_fifo"
 /* ================= STRUKTURA PAMIĘCI WSPÓŁDZIELONEJ ================= */
 typedef struct {
     podajnik_t podajniki[D_PRODUKTOW];
@@ -26,9 +29,19 @@ typedef struct {
     int aktualny_czas;
     int inwentaryzacja;
     int ewakuacja;
-    int aktualna_liczba_procesow;
-    int czekajacy;
+    int kasy_otwarte[2];
 } shm_data_t;
+
+#define FIFO_NAME_LEN 64
+
+typedef struct {
+    int klient_id;
+    int produkt_id[32];
+    char reply_fifo[FIFO_NAME_LEN];
+} fifo_req_t;
+
+
+
 
 extern shm_data_t *shm;   
 extern sem_t *sem_mem;
