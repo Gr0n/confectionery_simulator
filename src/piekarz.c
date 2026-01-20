@@ -63,7 +63,7 @@ int main() {
     while (!ewakuacja && shm->sklep_otwarty) {
         //loguj("PIEKARZ", "starttickwait");
         
-        sem_tick_start_wait();
+        //sem_tick_start_wait();
         if (!(!ewakuacja && shm->sklep_otwarty))
         {
             break;
@@ -77,7 +77,7 @@ int main() {
         if (cook_cd > 0) {
             cook_cd--;
             sem_post_mem();
-            sem_tick_done_post();
+            //sem_tick_done_post();
             continue; // czekaj na kolejny tick
         }
         if (shm->podajniki[produkt.id].count>=64) {
@@ -85,7 +85,7 @@ int main() {
             char buf[64];
             sprintf(buf, "Podajnik pełen: id %d\n", produkt.id);
             loguj("PIEKARZ", buf);
-            sem_tick_done_post();
+            //sem_tick_done_post();
             cook_cd = CZAS_GOTOWANIA; // ustaw czas gotowania
             continue; // podajnik pełny, spróbuj później
         }
@@ -100,7 +100,7 @@ int main() {
         cook_cd = CZAS_GOTOWANIA; // ustaw czas gotowania
         sem_post_mem();
         //loguj("PIEKARZ", "sempostmem");
-        sem_tick_done_post();
+        //sem_tick_done_post();
         //loguj("PIEKARZ", "semtickdonepost");
         //tick_end(shm->aktualna_liczba_procesow);
         //sleep(0.1); 

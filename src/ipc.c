@@ -66,28 +66,10 @@ void sem_tick_done_wait(void) {
 void sem_tick_done_post(void) {
     if (sem_tick_done) sem_post(sem_tick_done);
 }
-/*
+
 void tick_end(int num_processes) {
-    // każdy proces wykonuje turę i mówi "done"
-    sem_wait_mem();
-    shm->czekajacy++;
-    int done = shm->czekajacy;
-    sem_post_mem();
-
-    if (done == num_processes) {
-        // reset i odblokuj wszystkich
-        sem_wait_mem();
-        shm->czekajacy = 0;
-        sem_post_mem();
-
-        for (int i = 0; i < num_processes; i++) {
-            sem_tick_done_post();
-        }
-    }
-
-    sem_tick_done_wait();
+    return;
 }
-*/
 // Semafor limitu klientów:
 
 

@@ -11,15 +11,16 @@
 #include "logger.h"
 #define LICZBA_KAS 2
 #define D_MAX_LICZBA_KLIENTOW 64
+#define MAX_KLIENTOW_W_SKLEPIE 10
 #define D_PRODUKTOW 10
-#define D_CZAS_TRWANIA 32
+#define D_CZAS_TRWANIA 2
 #define START_TIME 800  // 8:00 AM
 #define NAME "KIEROWNIK"
 int LICZBA_KLIENTOW = D_MAX_LICZBA_KLIENTOW;
 int ILOSC_PRODUKTOW = D_PRODUKTOW;
 int CZAS_TRWANIA = D_CZAS_TRWANIA;
 int aktywne_procesy = 0;
-
+int klientow_w_sklepie = 0;
 
 pid_t piekarz_pid;
 pid_t kasjer_pid[LICZBA_KAS];
@@ -142,17 +143,6 @@ int main() {
         exit(1);
     }
 
-    produkt_t test_produkt1 = {0, "Rogalik", 5};
-    produkt_t test_produkt2 = {0, "Herbatnik", 5};
-
-    podajnik_push_shm(&shm->podajniki[0], &test_produkt1);
-    podajnik_push_shm(&shm->podajniki[1], &test_produkt2);
-
-    produkt_t pobrany;
-    podajnik_pop_shm(&shm->podajniki[0], &pobrany);
-    printf("Pobrano produkt: %s\n", pobrany.name);
-    podajnik_pop_shm(&shm->podajniki[1], &pobrany);
-    printf("Pobrano produkt: %s\n", pobrany.name);
 
     
     piekarz_pid = fork();
@@ -160,40 +150,64 @@ int main() {
         execl("./piekarz", "piekarz", NULL);
         perror("Błąd uruchamiania piekarza");
         loguj(NAME, "Błąd uruchamiania piekarza");
+        ipc_cleanup(1);
         exit(1);
     }
     aktywne_procesy++;
-
-    /* ===== KASJERZY ===== 
+    
     for (int i = 0; i < LICZBA_KAS; i++) {
         kasjer_pid[i] = fork();
         if (kasjer_pid[i] == 0) {
             char id[8];
-            sprintf(id, "%d", i);
+            sprintf(id, "%d", i+1);
             execl("./kasjer", "kasjer", id, NULL);
             perror("Błąd uruchamiania kasjera");
+            ipc_cleanup(1);
             exit(1);
         }
         aktywne_procesy++;
     }
-    */
-
+    
+    sem_wait_mem();
+    shm->kasy_otwarte[0] = 1;
+    sem_post_mem();
     
     /* ===== SYMULACJA CZASU ===== */
-    int czas_symulacji = CZAS_TRWANIA * 10; // w 10 minutach
-    for (int t = 0; t < czas_symulacji; ++t) {
+    time_t czas_start = time(NULL);
+    int godz_koniec = czas_start + CZAS_TRWANIA*1; // w minutach
+    while (time(NULL) < godz_koniec) {
         //usleep(100000); // 0.1 sekundy = 1 minuta symulacyjna
-        //loguj(NAME, "wait mem");
+        //loguj(NAME, "semtickstart post");
         sem_wait_mem();
-        shm->aktualna_liczba_procesow = aktywne_procesy;
-        shm->aktualny_czas = START_TIME + t;
+        int value;
+        sem_getvalue(sem_klient, &value);
+        
+        if (value >= MAX_KLIENTOW_W_SKLEPIE/2 && shm->kasy_otwarte[1] == 0)
+        {
+            shm->kasy_otwarte[1] = 1;
+            sprintf(buffer, "[KIEROWNIK] Otwieram kasę 2\n");
+            printf("%s", buffer);
+            loguj(NAME, buffer);
+        }
+        else if (value < MAX_KLIENTOW_W_SKLEPIE/2 && shm->kasy_otwarte[1] == 1)
+        {
+            shm->kasy_otwarte[1] = 0;
+            sprintf(buffer, "[KIEROWNIK] Zamykam kasę 2\n");
+            printf("%s", buffer);
+            loguj(NAME, buffer);
+        }
+
+        shm->aktualny_czas = time(NULL);
         sem_post_mem();
+        /*
         sprintf(buffer, "[KIEROWNIK] Czas symulacji: %02d:%02d\n",
                (shm->aktualny_czas) / 60, (shm->aktualny_czas) % 60);
         printf("%s", buffer);
         loguj(NAME, buffer);
+        */
         // START TURY
         //loguj(NAME, "semtickstart postpre");
+        /*
         for(int i=0; i<aktywne_procesy; i++){
             sem_tick_start_post();
            // loguj(NAME, "semtickstart post");
@@ -204,6 +218,7 @@ int main() {
             sem_tick_done_wait();
            // loguj(NAME, "semtick done wait");
         }
+        */
         tick();
     }
     /*

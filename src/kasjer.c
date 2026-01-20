@@ -48,13 +48,17 @@ void sig_ewakuacja(int sig) {
     loguj(NAME, "Otrzymano sygnal ewakuacji");
 }
 
-void init_fifo() {
-    if (mkfifo(FIFO_KASA1, 0666) == -1) {
-        perror("mkfifo kasa1");
+void init_fifo(int id) {
+    if (id == 1) {
+        if (mkfifo(FIFO_KASA1, 0666) == -1) {
+            perror("mkfifo kasa1");
+        }
+    } else {
+        if (mkfifo(FIFO_KASA2, 0666) == -1) {
+            perror("mkfifo kasa2");
+        }
     }
-    if (mkfifo(FIFO_KASA2, 0666) == -1) {
-        perror("mkfifo kasa2");
-    }
+
 }
 
 
@@ -81,15 +85,13 @@ int main(int argc, char **argv) {
     }
     int id = atoi(argv[1]);
 
-    if (id==1){
-        init_fifo();
-    }
+    init_fifo(id);
 
     int fd_kasa;
     if (id == 1) {
         fd_kasa = open(FIFO_KASA1, O_RDONLY | O_NONBLOCK);
     } else {
-        fd_kasa = open(FIFO_KASA1, O_RDONLY | O_NONBLOCK);
+        fd_kasa = open(FIFO_KASA2, O_RDONLY | O_NONBLOCK);
     }
 
     if (fd_kasa == -1) {
@@ -113,30 +115,52 @@ int main(int argc, char **argv) {
     while (!ewakuacja && shm->sklep_otwarty) {
         fifo_req_t msg;
         kasa_otwarta = shm->kasy_otwarte[id - 1];
-        //sem_wait_mem(); // ochrona pamięci
+
         int b;
         ioctl(fd_kasa, FIONREAD, &b);
-        if(kasa_otwarta || b > 0 )
-        {
-            read(fd_kasa, &msg, sizeof(msg));
 
-            int fd_reply = open(msg.reply_fifo, O_WRONLY);
-            if (fd_reply == -1) {
-                perror("open fifo reply kasa");
+        // jeśli FIFO puste i kasa zamknięta -> nic nie robimy
+        if (b == 0 && !kasa_otwarta) {
+            continue;
+        }
+
+        // jeśli FIFO puste ale kasa otwarta -> czekamy na klientów
+        if (b == 0 && kasa_otwarta) {
+            //usleep(10000); // 10 ms, żeby nie zjeść CPU
+            continue;
+        }
+
+        // jeśli tu jesteśmy, to jest co czytać
+        ssize_t r = read(fd_kasa, &msg, sizeof(msg));
+        if (r <= 0) {
+            if (r == 0) {
+                // FIFO zamknięte po drugiej stronie
                 continue;
             }
-            for(int i=0; i<32; i++)
-            {
-                if(msg.produkt_id[i] == 0) // w wiadomości produkt_id powinien być zwiększony o 1
-                    break;
-                sprzedaj_produkt(produkty[msg.produkt_id[i]-1]);
+            if (errno == EAGAIN) {
+                continue;
             }
-            write(fd_reply, paragon, sizeof(paragon));
-            close(fd_reply);
-            wyczysc_paragon();
+            perror("read");
+            continue;
         }
-        //sem_post_mem();
+
+        int fd_reply = open(msg.reply_fifo, O_WRONLY);
+        if (fd_reply == -1) {
+            perror("open fifo reply kasa");
+            continue;
+        }
+
+        for (int i = 0; i < 32; i++) {
+            if (msg.produkt_id[i] == 0)
+                break;
+            sprzedaj_produkt(produkty[msg.produkt_id[i] - 1]);
+        }
+
+        write(fd_reply, paragon, strlen(paragon) + 1);
+        close(fd_reply);
+        wyczysc_paragon();
     }
+
 
     loguj(NAME, "Koniec pracy - ewakuacja");
     if (id == 1) {
