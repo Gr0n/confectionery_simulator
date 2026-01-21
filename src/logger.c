@@ -43,16 +43,13 @@ void raport(const char *proces, const char *tekst) {
     time_t t;
     struct tm *tm_info;
     /* SEKCJA KRYTYCZNA */
-    sem_wait_logger();
-
     f = fopen(RAPORT_FILE, "a");
     if (!f) {
-        sem_post_logger();
         return;
     }
 
     fprintf(f,
-        "[%-10s] | %s\n",
+        "[%s] | %s\n",
         proces,
         tekst
     );
@@ -60,5 +57,4 @@ void raport(const char *proces, const char *tekst) {
     fflush(f);
     fclose(f);
 
-    sem_post_logger();
 }

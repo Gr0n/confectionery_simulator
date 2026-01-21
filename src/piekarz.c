@@ -9,6 +9,7 @@
 #include "logger.h"
 #include "podajnik.h"
 #define CZAS_GOTOWANIA 15 // czas gotowania w tickach
+#define NAME "PIEKARZ"
 static volatile sig_atomic_t inwentaryzacja = 0;
 static volatile sig_atomic_t ewakuacja = 0;
 
@@ -24,6 +25,10 @@ produkt_t produkty[10] = {{0, "Rogalik", 2},
 {7, "Biszkopcik", 6},
 {8, "Pierniczek", 3},
 {9, "Sezamka", 4}};
+
+int wyprodukowane_produkty[10] = {0};
+
+
 //shm_data_t *shm;
 void sig_inwentaryzacja(int sig) {
     (void)sig;
@@ -43,6 +48,18 @@ void sig_ewakuacja(int sig) {
 int dodaj_produkt(produkt_t produkt) {
     return podajnik_push_shm(&shm->podajniki[produkt.id], &produkt);  // 1 sztuka
 }
+
+void podsumowanie(){
+    sem_wait_logger();
+    raport(NAME, "Inwentaryzacja - podsumowanie produkcji:\n");
+    for(int i=0;i<10;i++){
+        char buf[64];
+        sprintf(buf, "Produkt %s, sprzedano: %d szt.\n", produkty[i].name, wyprodukowane_produkty[i]);
+        raport(NAME, buf);
+    }
+    sem_post_logger();
+}
+
 
 /* Funkcja główna piekarza */
 int main() {
@@ -93,6 +110,7 @@ int main() {
             if (dodaj_produkt(produkt) == 0) {
                 shm->wyprodukowane[produkt.id]++;
                 char buf[64];
+                wyprodukowane_produkty[produkt.id]++;
                 //sprintf(buf, "Wyprodukowano produkt %s\n", produkt.name);
                 //loguj("PIEKARZ", buf);
             }
@@ -105,8 +123,10 @@ int main() {
         //tick_end(shm->aktualna_liczba_procesow);
         //sleep(0.1); 
     }
-
-    loguj("PIEKARZ", "Koniec pracy - ewakuacja");
+    if (inwentaryzacja) {
+        podsumowanie();
+    }
+    loguj("PIEKARZ", "Koniec pracy");
 
     ipc_cleanup(0);
     return 0;

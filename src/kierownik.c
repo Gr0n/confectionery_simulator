@@ -24,14 +24,9 @@ int CZAS_TRWANIA = D_CZAS_TRWANIA;
 static volatile sig_atomic_t stop_thread = 0;
 pthread_t input_thread;
 
-
-
 pid_t piekarz_pid;
 pid_t kasjer_pid[LICZBA_KAS];
-pid_t klient_pid[D_MAX_LICZBA_KLIENTOW]; // max 32 klientów
-
-
-/* =========================== SYGNAŁY =========================== */
+pid_t klient_pid[D_MAX_LICZBA_KLIENTOW]; 
 
 void wyslij_inwentaryzacje() {
     printf("[KIEROWNIK] SYGNAL: INWENTARYZACJA\n");
@@ -62,7 +57,6 @@ void wyslij_ewakuacje() {
     
 }
 
-/* =========================== FUNKCJE =========================== */
 
 void stworz_klienta() {
 
@@ -73,7 +67,7 @@ void stworz_klienta() {
             break;
         }
     }
-    if (idx == -1) return; // brak miejsca
+    if (idx == -1) return; 
 
     klient_pid[idx] = fork();
     if (klient_pid[idx] == 0) {
@@ -88,7 +82,6 @@ void tick() {
     if (rand_num == 0){
         stworz_klienta();
     }
-    // tutaj możesz losować zdarzenia w sklepie
 }
 
 void menu() {
@@ -96,7 +89,7 @@ void menu() {
     printf("1. Uruchom symulację\n");
     printf("Wybierz opcję: ");
     int opt = getchar();
-    getchar(); // zjada \n
+    getchar();
     switch (opt) {
         case '1':
             return;
@@ -124,7 +117,6 @@ void sigchld_handler(int sig) {
         }
     }
 }
-/* =========================== MAIN =========================== */
 
 void *input_thread_func(void *arg) {
     (void)arg;
@@ -138,7 +130,6 @@ void *input_thread_func(void *arg) {
             wyslij_inwentaryzacje();
         }
 
-        // zjada \n
         if (c != '\n') {
             int ch;
             while ((ch = getchar()) != '\n' && ch != EOF);
@@ -161,7 +152,7 @@ int main() {
            CZAS_TRWANIA, LICZBA_KLIENTOW, ILOSC_PRODUKTOW);
     printf("%s", buffer);
     loguj(NAME, buffer);
-    /* ===== INICJALIZACJA IPC ===== */
+    //inicjalizacja semaforów i pamięci współdzielonej
     if (ipc_init(1) == -1) {
         fprintf(stderr, "Błąd inicjalizacji IPC\n");
         loguj(NAME, "Błąd inicjalizacji IPC");
@@ -172,7 +163,7 @@ int main() {
     for(int p = 0; p < D_PRODUKTOW; p++){
         podajnik_init_shm(&shm->podajniki[p]);
     }
-    /* ===== SEMAFOR LIMITU KLIENTÓW ===== */
+
     if (sem_klientlimit_init(1, LICZBA_KLIENTOW) == -1) {
         fprintf(stderr, "Błąd inicjalizacji semafora limitu klientów\n");
         loguj(NAME, "Błąd inicjalizacji semafora limitu klientów");
@@ -180,7 +171,7 @@ int main() {
     }
     signal(SIGCHLD, sigchld_handler);
 
-    
+    //uruchomienie piekarza i kasjerów
     piekarz_pid = fork();
     if (piekarz_pid == 0) {
         execl("./piekarz", "piekarz", NULL);
@@ -208,14 +199,9 @@ int main() {
     
     pthread_create(&input_thread, NULL, input_thread_func, NULL);
 
-    
-    /* ===== SYMULACJA CZASU ===== */
     time_t czas_start = time(NULL);
-    int godz_koniec = czas_start + CZAS_TRWANIA*1; // w minutach
+    int godz_koniec = czas_start + CZAS_TRWANIA*60; // w minutach
     while (time(NULL) < godz_koniec) {
-        //usleep(100000); // 0.1 sekundy = 1 minuta symulacyjna
-        //loguj(NAME, "semtickstart post");
-        
         sem_wait_mem();
         int value;
         sem_getvalue(sem_klient, &value);
@@ -241,10 +227,6 @@ int main() {
     }
     
     //wyslij_inwentaryzacje();
-    stop_thread = 1;
-    pthread_join(input_thread, NULL);
-
-
     //wyslij_ewakuacje();
     
     loguj(NAME, "wait mem close shop");
@@ -260,18 +242,21 @@ int main() {
     
     sprintf(buffer, "\n[KIEROWNIK] RAPORT KOŃCOWY\n");
     printf("%s", buffer);
-    for (int p = 0; p < ILOSC_PRODUKTOW; p++) {
-        int sprzedano = 0;
-        for (int k = 0; k < LICZBA_KAS; k++)
-            sprzedano += shm->sprzedane[k][p];
-
-        sprintf(buffer, "Produkt %d: wyprodukowano=%d sprzedano=%d\n",
-               p, shm->wyprodukowane[p], sprzedano);
-        printf("%s", buffer);
-        loguj(NAME, buffer);
+    if (shm->inwentaryzacja)
+    {
+        loguj(NAME, "[KIEROWNIK] Inwentaryzacja została przeprowadzona");
+        raport(NAME, "Podliczanie produktów w podajnikach");
+        for (int p = 0; p < ILOSC_PRODUKTOW; p++) {
+            int w_podajniku = 0;
+            w_podajniku = shm->podajniki[p].count;
+            sprintf(buffer, "Produkt %d: w podajniku: %d", p, shm->wyprodukowane[p]);
+            raport(NAME, buffer);
+        }
     }
 
     /* ===== SPRZĄTANIE IPC ===== */
+    stop_thread = 1;
+    pthread_join(input_thread, NULL);
     ipc_cleanup(1);
 
     sprintf(buffer,"[KIEROWNIK] Koniec\n");

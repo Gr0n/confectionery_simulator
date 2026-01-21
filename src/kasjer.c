@@ -78,15 +78,17 @@ void wyczysc_paragon() {
     paragon[0] = '\0';
 }
 
-void podsumowanie(){
+void podsumowanie(int id){
+    sem_wait_logger();
     char buf_title[64];
-    sprintf(buf_title, "Kasjer %s - inwentaryzacja", NAME);
+    sprintf(buf_title, "Kasjer %d - inwentaryzacja", id);
     raport(NAME, buf_title);
     for(int i=0;i<10;i++){
         char buf[64];
         sprintf(buf, "Produkt %s, sprzedano: %d szt.\n", produkty[i].name, sprzedane_produkty[i]);
         raport(NAME, buf);
     }
+    sem_post_logger();
 }
 
 
@@ -179,7 +181,7 @@ int main(int argc, char **argv) {
         wyczysc_paragon();
     }
     if (inwentaryzacja) {
-        podsumowanie();
+        podsumowanie(id);
     }
     char buf[64];
     sprintf(buf, "Koniec pracy kasjera %d", id);

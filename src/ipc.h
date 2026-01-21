@@ -23,6 +23,7 @@
 /* ================= STRUKTURA PAMIĘCI WSPÓŁDZIELONEJ ================= */
 typedef struct {
     podajnik_t podajniki[D_PRODUKTOW];
+    int piekarnia_otwarta;    // 1 = otwarta, 0 = zamknięta
     int sklep_otwarty;             // 1 = otwarty, 0 = zamknięty
     int wyprodukowane[D_PRODUKTOW];
     int sprzedane[2][D_PRODUKTOW]; // sprzedane na kasach
