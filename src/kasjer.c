@@ -13,11 +13,15 @@
 #include <sys/ioctl.h>
 
 #define NAME "KASJER"
+
+//sygnały
 static volatile sig_atomic_t inwentaryzacja = 0;
 static volatile sig_atomic_t ewakuacja = 0;
 
+//wskaznik do pamięci współdzielonej
 sem_t *sem;
 
+//lista produktów
 produkt_t produkty[10] = {{0, "Rogalik", 2},
 {1, "Herbatnik", 1},
 {2, "Babeczka", 5},
@@ -33,18 +37,20 @@ int sprzedane_produkty[10] = {0,0,0,0,0,0,0,0,0,0};
 int kasa_otwarta = 0;
 char paragon[1024];
 
+//obsługa sygnału inwentaryzacji
 void sig_inwentaryzacja(int sig) {
     (void)sig;
     inwentaryzacja = 1;
     loguj(NAME, "Otrzymano sygnal inwentaryzacji");
 }
-
+//obsługa sygnału ewakuacji
 void sig_ewakuacja(int sig) {
     (void)sig;
     ewakuacja = 1;
     loguj(NAME, "Otrzymano sygnal ewakuacji");
 }
 
+//inicjalizacja fifo kas
 void init_fifo(int id) {
     if (id == 1) {
         if (mkfifo(FIFO_KASA1, 0666) == -1) {
@@ -58,6 +64,7 @@ void init_fifo(int id) {
 
 }
 
+//funkcja sprzedająca produkt i dodająca go do paragonu
 void sprzedaj_produkt(produkt_t produkt, int ilosc) {
     sprzedane_produkty[produkt.id]+=ilosc;
     char buf[64];
@@ -69,10 +76,12 @@ void sprzedaj_produkt(produkt_t produkt, int ilosc) {
     loguj(NAME, buf);
 }
 
+//funkcja czyszcząca paragon
 void wyczysc_paragon() {
     paragon[0] = '\0';
 }
 
+//funkcja podsumowująca inwentaryzację
 void podsumowanie(int id){
     sem_wait_logger();
     char buf_title[64];
@@ -86,47 +95,64 @@ void podsumowanie(int id){
     sem_post_logger();
 }
 
+// FUNKCJA MAIN KASJERA
 int main(int argc, char **argv) {
+
+    //sprawdzenie argumentów
     if (argc < 2) {
         fprintf(stderr, "Brak argumentu ID\n");
         return 1;
     }
+    //pobranie ID kasjera
     int id = atoi(argv[1]);
-
+    //inicjalizacja fifo kas na podstawie ID
     init_fifo(id);
-
     int fd_kasa;
     if (id == 1) {
         fd_kasa = open(FIFO_KASA1, O_RDONLY | O_NONBLOCK);
     } else {
         fd_kasa = open(FIFO_KASA2, O_RDONLY | O_NONBLOCK);
     }
-
     if (fd_kasa == -1) {
         perror("open fifo kasa");
         exit(1);
     }
 
+    //inicjalizacja generatora liczb losowych
     srand(time(NULL) ^ getpid());
 
+    //ustawienie obsługi sygnałów
     signal(SIGUSR1, sig_inwentaryzacja);
     signal(SIGUSR2, sig_ewakuacja);
     
+    //inicjalizacja IPC
     if (ipc_init(0) == -1) {
         perror("ipc_init kasjer");
         exit(1);
     }
-
     shm = ipc_get_shm();
+
+    //pobranie wielkości wiadomości w fifo kasy
     int b;
-    ioctl(fd_kasa, FIONREAD, &b);
+    if (ioctl(fd_kasa, FIONREAD, &b)) {
+        perror("ioctl FIONREAD");
+        exit(1);
+    }
     loguj(NAME, "Kasjer gotowy do pracy");
     paragon[0] = '\0';
+
+    //Główna pętla kasjera
     while ((!ewakuacja && shm->piekarnia_otwarta==1) || b > 0) {
         fifo_req_t msg;
         kasa_otwarta = shm->kasy_otwarte[id - 1];
 
-        ioctl(fd_kasa, FIONREAD, &b);
+        //pobranie wielkości wiadomości w fifo kasy
+        if (ioctl(fd_kasa, FIONREAD, &b))
+        {
+            perror("ioctl FIONREAD");
+            exit(1);
+        }
+        //sprawdzenie czy kasa jest pusta/otwarta
         if (b == 0 && !kasa_otwarta) {
             continue;
         }
@@ -147,12 +173,14 @@ int main(int argc, char **argv) {
         }
         loguj(NAME, "Obsługa klienta...");
 
+        //otwarcie fifo klienta do pisania
         int fd_reply = open(msg.reply_fifo, O_WRONLY);
         if (fd_reply == -1) {
             perror("open fifo reply kasa");
             continue;
         }
 
+        //generowanie paragonu z listy zakupow klienta
         for (int i = 0; i < 10; i++) {
             char buf[64];
             sprintf(buf, "Produkt ID: %d, Ilość: %d\n", i, msg.produkt_id[i]);
@@ -162,16 +190,21 @@ int main(int argc, char **argv) {
             sprzedaj_produkt(produkty[i], msg.produkt_id[i]);
         }
         loguj(NAME, "Wystawianie paragonu:");
-        write(fd_reply, paragon, strlen(paragon) + 1);
+        if (write(fd_reply, paragon, strlen(paragon) + 1) == -1) {
+            perror("write paragon");
+        }
         close(fd_reply);
         wyczysc_paragon();
     }
+    //obsługa inwentaryzacji
     if (inwentaryzacja) {
         podsumowanie(id);
     }
     char buf[64];
     sprintf(buf, "Koniec pracy kasjera %d", id);
     loguj(NAME, buf);
+
+    //zamkniecie fifo kas
     if (id == 1) {
         close(fd_kasa);
         unlink(FIFO_KASA1);
