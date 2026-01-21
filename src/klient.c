@@ -14,7 +14,7 @@
 #define MAX_ZAKUPOW 5
 #define NAME "KLIENT"
 static volatile sig_atomic_t ewakuacja = 0;
-
+char reply_fifo[64];
 
 /* ================= SYGNALY ================= */
 
@@ -34,11 +34,13 @@ void losuj_zakupy(int zakupy[D_PRODUKTOW]) {
         zakupy[rand()%D_PRODUKTOW] += 1;
 }
 
-/* ================= MAIN ================= */
+void cleanup() {
+    unlink(reply_fifo);
+}
 
 int main() {
+    atexit(cleanup);
     srand(getpid() ^ time(NULL));
-    char reply_fifo[64];
     sprintf(reply_fifo, "/tmp/klient_%d_fifo", getpid());
     mkfifo(reply_fifo, 0666);
     signal(SIGUSR2, sig_ewakuacja);

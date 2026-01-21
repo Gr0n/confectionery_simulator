@@ -174,7 +174,7 @@ int ipc_init(int create) {
     /* Zerowanie danych tylko przy tworzeniu */
     if (create) {
         memset(shm, 0, sizeof(shm_data_t));
-        shm->sklep_otwarty = 1;
+        shm->piekarnia_otwarta = 1;
     }
 
     /* Semafor pamięci */

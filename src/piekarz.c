@@ -77,8 +77,8 @@ int main() {
 
     loguj("PIEKARZ", "Start pracy piekarza");
     int cook_cd = 0;
-    while (!ewakuacja && shm->sklep_otwarty) {
-        if (!(!ewakuacja && shm->sklep_otwarty))
+    while (!ewakuacja && shm->piekarnia_otwarta) {
+        if (!(!ewakuacja && shm->piekarnia_otwarta))
         {
             break;
         }

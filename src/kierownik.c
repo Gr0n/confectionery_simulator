@@ -16,7 +16,8 @@
 #define D_MAX_LICZBA_KLIENTOW 64
 #define MAX_KLIENTOW_W_SKLEPIE 10
 #define D_PRODUKTOW 10
-#define D_CZAS_TRWANIA 2 // w sekundach
+#define D_CZAS_TRWANIA 6 // w sekundach
+#define D_CZAS_PRZED_OTWARCIEM 2 // w sekundach
 #define NAME "KIEROWNIK"
 int LICZBA_KLIENTOW = MAX_KLIENTOW_W_SKLEPIE;
 int ILOSC_PRODUKTOW = D_PRODUKTOW;
@@ -87,12 +88,31 @@ void tick() {
 void menu() {
     printf("Kierownik sklepu\n");
     printf("1. Uruchom symulację\n");
+    printf("2. Ustaw czas trwania symulacji (obecny: %d minut)\n", CZAS_TRWANIA);
     printf("Wybierz opcję: ");
     int opt = getchar();
     getchar();
     switch (opt) {
         case '1':
             return;
+        case '2':
+            printf("Podaj czas trwania symulacji w minutach: ");
+            int czas;
+            if (scanf("%d", &czas)==EOF)
+            {
+                printf("Błąd odczytu czasu trwania\n");
+                menu();
+                break;
+            }
+            getchar();
+            if (czas > 0) {
+                CZAS_TRWANIA = czas;
+                printf("Czas trwania symulacji ustawiony na %d minut\n", CZAS_TRWANIA);
+            } else {
+                printf("Nieprawidłowy czas trwania\n");
+            }
+            menu();
+            break;
         default:
             printf("Nieprawidłowa opcja\n");
             menu();
@@ -138,18 +158,30 @@ void *input_thread_func(void *arg) {
     return NULL;
 }
 
+static volatile sig_atomic_t stop = 0;
 
+void sigint_handler(int sig) {
+    (void)sig;
+    stop = 1;
+    loguj("KIEROWNIK", "Otrzymano SIGINT, sprzatanie...");
+    ipc_cleanup(1);
+    exit(0);
+}
 
+void cleanup() {
+    ipc_cleanup(1);
+}
 
 
 int main() {
-
+    signal(SIGINT, sigint_handler);
+    atexit(cleanup);
     printf("[KIEROWNIK] Start procesu\n");
     loguj(NAME, "Start procesu");
     menu();
     char buffer[256];
-    sprintf(buffer, "[KIEROWNIK] Symulacja: czas trwania=%d godzin, pojemność sklepu=%d, ilość produktów=%d\n",
-           CZAS_TRWANIA, LICZBA_KLIENTOW, ILOSC_PRODUKTOW);
+    sprintf(buffer, "[KIEROWNIK] Symulacja: czas trwania=%d minut\n",
+           CZAS_TRWANIA);
     printf("%s", buffer);
     loguj(NAME, buffer);
     //inicjalizacja semaforów i pamięci współdzielonej
@@ -201,11 +233,17 @@ int main() {
 
     time_t czas_start = time(NULL);
     int godz_koniec = czas_start + CZAS_TRWANIA*1; // w minutach
+    int godz_otwarcia = czas_start + D_CZAS_PRZED_OTWARCIEM*1; // w minutach
     while (time(NULL) < godz_koniec) {
         sem_wait_mem();
         int value;
         sem_getvalue(sem_klient, &value);
-        
+        if (time(NULL) > godz_otwarcia && shm->sklep_otwarty == 0) {
+            shm->sklep_otwarty = 1;
+            sprintf(buffer, "[KIEROWNIK] otwieram sklep\n");
+            printf("%s", buffer);
+            loguj(NAME, buffer);
+        }
         if (value <= MAX_KLIENTOW_W_SKLEPIE/2 && shm->kasy_otwarte[1] == 0)
         {
             shm->kasy_otwarte[1] = 1;
@@ -226,21 +264,18 @@ int main() {
         tick();
     }
     
-    //wyslij_inwentaryzacje();
-    //wyslij_ewakuacje();
-    
-    loguj(NAME, "wait mem close shop");
+    loguj(NAME, "Zamykam piekarnię i kasy");
     sem_wait_mem();
     shm->kasy_otwarte[0] = 0;
     shm->kasy_otwarte[1] = 0;
     shm->sklep_otwarty = 0;
+    shm->piekarnia_otwarta = 0;
     sem_post_mem();
-    loguj(NAME, "end mem close shop");
+    loguj(NAME, "Oczekiwanie na zakończenie procesów potomnych");
     while (wait(NULL) > 0);
-    loguj(NAME, "end mem close shop");
-    /* ===== RAPORT KOŃCOWY ===== */
+    loguj(NAME, "Koniec procesów potomnych");
     
-    sprintf(buffer, "\n[KIEROWNIK] RAPORT KOŃCOWY\n");
+    sprintf(buffer, "\n[KIEROWNIK] Koniec pracy, wprowadź dowolny znak aby wyjść\n");
     printf("%s", buffer);
     sem_wait_logger();
     if (shm->inwentaryzacja)
@@ -260,7 +295,7 @@ int main() {
     pthread_join(input_thread, NULL);
     ipc_cleanup(1);
 
-    sprintf(buffer,"[KIEROWNIK] Koniec\n");
+    sprintf(buffer,"[KIEROWNIK] Zamykanie\n");
     printf("%s", buffer);
     loguj(NAME, buffer);
     return 0;
