@@ -12,25 +12,31 @@
 #include <pthread.h>
 #include <termios.h>
 
-#define LICZBA_KAS 2
-#define D_MAX_LICZBA_KLIENTOW 1024
-#define MAX_KLIENTOW_W_SKLEPIE 10
-#define D_PRODUKTOW 10
+#define LICZBA_KAS 2 // stała liczba kas
+#define D_MAX_LICZBA_KLIENTOW 1024 // maksymalna liczba klientów w systemie
+#define MAX_KLIENTOW_W_SKLEPIE 10 // maksymalna liczba klientów w sklepie jednocześnie
+#define D_PRODUKTOW 10 // liczba różnych produktów
 #define D_CZAS_TRWANIA 6 // w sekundach
 #define D_CZAS_PRZED_OTWARCIEM 2 // w sekundach
-#define NAME "KIEROWNIK"
+#define NAME "KIEROWNIK" // nazwa procesu do logów
+
+
 int LICZBA_KLIENTOW = MAX_KLIENTOW_W_SKLEPIE;
 int ILOSC_PRODUKTOW = D_PRODUKTOW;
 int CZAS_TRWANIA = D_CZAS_TRWANIA;
-static volatile sig_atomic_t stop_thread = 0;
+
+static volatile sig_atomic_t stop_thread = 0; // flaga do zatrzymania wątku input
 pthread_t input_thread;
 
-pid_t piekarz_pid;
-pid_t kasjer_pid[LICZBA_KAS];
-pid_t klient_pid[D_MAX_LICZBA_KLIENTOW]; 
+pid_t piekarz_pid; // PID piekarza
+pid_t kasjer_pid[LICZBA_KAS]; // PID kasjerów
+pid_t klient_pid[D_MAX_LICZBA_KLIENTOW]; // PID klientów
 
+// rodzaj testu
 int test_mode = 0;
 
+
+/*wysyła sygnał do piekarza i kasjerów o inwentaryzacji*/
 void wyslij_inwentaryzacje() {
     printf("[KIEROWNIK] SYGNAL: INWENTARYZACJA\n");
 
@@ -43,7 +49,7 @@ void wyslij_inwentaryzacje() {
     for (int i = 0; i < LICZBA_KAS; i++)
         kill(kasjer_pid[i], SIGUSR1);
 }
-
+/*wysyła sygnał do piekarza, kasjerów i klientów o ewakuacji*/
 void wyslij_ewakuacje() {
     printf("[KIEROWNIK] SYGNAL: EWAKUACJA\n");
 
@@ -61,7 +67,7 @@ void wyslij_ewakuacje() {
     
 }
 
-
+/*tworzy nowego klienta jeśli jest miejsce w tablicy klient_pid*/
 void stworz_klienta() {
 
     int idx = -1;
@@ -80,20 +86,9 @@ void stworz_klienta() {
         exit(1);
     }
 }
+// licznik klientów utworzonych w trybie tesowtowym 3
 int klienci_total = 0;
-void tick() {
-    if (shm->sklep_otwarty == 0) return;
-    int rand_num = rand() % 1000000;
-    if (rand_num == 0 || test_mode == 3){
-        stworz_klienta();
-    }
-    if (test_mode == 3){
-        klienci_total++;
-        printf("[KIEROWNIK] Utworzono klienta spamowego, łącznie: %d\n", klienci_total);
-    }
-
-}
-
+/*wyświetla menu i obsługuje wybór użytkownika*/
 void menu() {
     printf("Kierownik sklepu\n");
     printf("1. Uruchom symulację\n");
@@ -142,7 +137,7 @@ void menu() {
             menu();
     }
 }
-
+/*obsługuje zakończenie procesów klientów*/
 void sigchld_handler(int sig) {
     (void)sig;
 
@@ -161,7 +156,7 @@ void sigchld_handler(int sig) {
         }
     }
 }
-
+/*funkcja wątku obsługującego wejście użytkownika*/
 void *input_thread_func(void *arg) {
     (void)arg;
     while (!stop_thread) {
@@ -182,8 +177,8 @@ void *input_thread_func(void *arg) {
     return NULL;
 }
 
+/*obsługa sygnału SIGINT do sprzątania i zakończenia*/
 static volatile sig_atomic_t stop = 0;
-
 void sigint_handler(int sig) {
     (void)sig;
     stop = 1;
@@ -191,23 +186,28 @@ void sigint_handler(int sig) {
     ipc_cleanup(1);
     exit(0);
 }
-
 void cleanup() {
     ipc_cleanup(1);
 }
 
-
+/* GŁÓWNA FUNKCJA KIEROWNIKA */
 int main() {
+    //obsługa sygnału SIGINT
     signal(SIGINT, sigint_handler);
     atexit(cleanup);
+
     printf("[KIEROWNIK] Start procesu\n");
     loguj(NAME, "Start procesu");
+
+    //wyświetlenie menu
     menu();
+
     char buffer[256];
     sprintf(buffer, "[KIEROWNIK] Symulacja: czas trwania=%d minut\n",
            CZAS_TRWANIA);
     printf("%s", buffer);
     loguj(NAME, buffer);
+
     //inicjalizacja semaforów i pamięci współdzielonej
     if (ipc_init(1) == -1) {
         fprintf(stderr, "Błąd inicjalizacji IPC\n");
@@ -219,12 +219,14 @@ int main() {
     for(int p = 0; p < D_PRODUKTOW; p++){
         podajnik_init_shm(&shm->podajniki[p]);
     }
-
+    //inicjalizacja semafora limitu klientów w sklepie
     if (sem_klientlimit_init(1, LICZBA_KLIENTOW) == -1) {
         fprintf(stderr, "Błąd inicjalizacji semafora limitu klientów\n");
         loguj(NAME, "Błąd inicjalizacji semafora limitu klientów");
         exit(1);
     }
+
+    //obsługa sygnału SIGCHLD do czyszczenia zakończonych procesów klientów
     signal(SIGCHLD, sigchld_handler);
 
     //uruchomienie piekarza i kasjerów
@@ -250,24 +252,36 @@ int main() {
             exit(1);
         }
     }
+    
+    //obsługa trybu testowego 2/ maksymalna liczba klientów w sklepie
     if (test_mode == 2) {
         for (int i = 0; i < MAX_KLIENTOW_W_SKLEPIE; i++) {
             sem_klientlimit_wait(); // Zwiększ limit klientów do maksimum (żaden klient nie powinien wejść)
         }
     }
+
+    //otwarcie pierwszej kasy
     sem_wait_mem();
     shm->kasy_otwarte[0] = 1;
     sem_post_mem();
     
+    //uruchomienie wątku obsługującego wejście użytkownika
     pthread_create(&input_thread, NULL, input_thread_func, NULL);
 
+    //obliczenia godziny zakończenia i otwarcia sklepu
     time_t czas_start = time(NULL);
     int godz_koniec = czas_start + CZAS_TRWANIA*1; // w minutach
     int godz_otwarcia = czas_start + D_CZAS_PRZED_OTWARCIEM*1; // w minutach
+    
+    /*GŁÓWNA PĘTLA KIEROWNIKA*/
     while (time(NULL) < godz_koniec) {
+        
+        //otwarcie semafora pamięci współdzielonej
         sem_wait_mem();
+        //pobieranie ilosci klientów w sklepie
         int value;
         sem_getvalue(sem_klient, &value);
+        //zarządzanie otwarciem sklepu i kas
         if (time(NULL) > godz_otwarcia && shm->sklep_otwarty == 0) {
             shm->sklep_otwarty = 1;
             sprintf(buffer, "[KIEROWNIK] otwieram sklep\n");
@@ -288,12 +302,24 @@ int main() {
             printf("%s", buffer);
             loguj(NAME, buffer);
         }
-
+        //aktualizacja czasu w pamięci współdzielonej
         shm->aktualny_czas = time(NULL);
+        //opuszczenie semafora pamięci współdzielonej
         sem_post_mem();
-        tick();
+        
+        //tworzenie klientów
+        if (shm->sklep_otwarty == 0) return;
+        int rand_num = rand() % 1000000;
+        if (rand_num == 0 || test_mode == 3){
+            stworz_klienta();
+        }
+        // w trybie testowym 3 zliczanie klientów spamowych
+        if (test_mode == 3){
+            klienci_total++;
+            printf("[KIEROWNIK] Utworzono klienta spamowego, łącznie: %d\n", klienci_total);
+        }
     }
-    
+    // zamknięcie piekarni i kas
     loguj(NAME, "Zamykam piekarnię i kasy");
     sem_wait_mem();
     shm->kasy_otwarte[0] = 0;
@@ -301,20 +327,26 @@ int main() {
     shm->sklep_otwarty = 0;
     shm->piekarnia_otwarta = 0;
     sem_post_mem();
+    // w trybie testowym 2 czyszczenie semafora limitu klientów
     if (test_mode == 2) {
         for (int i = 0; i < MAX_KLIENTOW_W_SKLEPIE; i++) {
             sem_klientlimit_post(); //czyszczenie semafora
         }
     }
+
+    // oczekiwanie na zakończenie procesów potomnych
     loguj(NAME, "Oczekiwanie na zakończenie procesów potomnych");
     while (wait(NULL) > 0);
     loguj(NAME, "Koniec procesów potomnych");
     
+    // oczekiwanie na zakończenie wątku wejścia
     sprintf(buffer, "\n[KIEROWNIK] Koniec pracy, wprowadź dowolny znak aby wyjść\n");
     printf("%s", buffer);
-    sem_wait_logger();
+
+    // raport z inwentaryzacji jeśli została przeprowadzona
     if (shm->inwentaryzacja)
     {
+        sem_wait_logger();
         loguj(NAME, "[KIEROWNIK] Inwentaryzacja została przeprowadzona");
         raport(NAME, "Podliczanie produktów w podajnikach");
         for (int p = 0; p < ILOSC_PRODUKTOW; p++) {
@@ -323,8 +355,9 @@ int main() {
             sprintf(buffer, "Produkt %d: w podajniku: %d", p, w_podajniku);
             raport(NAME, buffer);
         }
+        sem_post_logger();
     }
-    sem_post_logger();
+    
     /* ===== SPRZĄTANIE IPC ===== */
     stop_thread = 1;
     pthread_join(input_thread, NULL);
