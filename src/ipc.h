@@ -50,17 +50,6 @@ extern sem_t *sem_klient;
 extern sem_t *sem_logger;
 /* ========================= FUNKCJE IPC ========================= */
 
-// ======= Obsługa 'tick()' =======
-int sem_tick_start_init(int create);
-void sem_tick_start_wait(void);
-void sem_tick_start_post(void);
-
-int sem_tick_done_init(int create);
-void sem_tick_done_wait(void);
-void sem_tick_done_post(void);
-
-void tick_end(int num_processes);
-
 /* ===== Pamięć współdzielona ===== */
 int ipc_init(int create);           // tworzy lub otwiera SHM i semafory
 shm_data_t* ipc_get_shm(void);      // zwraca wskaźnik do pamięci

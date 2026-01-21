@@ -38,10 +38,16 @@ void cleanup() {
     unlink(reply_fifo);
 }
 
+void sigint_handler(int sig) {
+    (void)sig;
+    unlink(reply_fifo);
+    exit(0);
+}
+
 int main() {
     //obsługa czyszczenia fifo w razie zamkniecia
     atexit(cleanup);
-
+    signal(SIGINT, sigint_handler);
     srand(getpid() ^ time(NULL));
 
     sprintf(reply_fifo, "/tmp/klient_%d_fifo", getpid());
@@ -138,6 +144,16 @@ int main() {
     }
     //Jeśli sklep jest zamknięty klient wychodzi ze sklepu
     if (ewakuacja || shm->sklep_otwarty==0) {
+        
+        if (ewakuacja)
+        {
+            for (int i=0; i<10; i++)
+            {
+                char bufor_zak[64];
+                sprintf(bufor_zak, "Odkłada produktów %d x %d do kosza", i, koszyk[i]);
+                loguj(NAME, bufor_zak);
+            }
+        }
 
         unlink(reply_fifo);
         sem_klientlimit_post();

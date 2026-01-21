@@ -6,6 +6,8 @@
 
 #define LOG_FILE "log"
 #define RAPORT_FILE "raport"
+
+//funkcja pisząca do pliku log
 void loguj(const char *proces, const char *tekst) {
     FILE *f;
     time_t t;
@@ -38,10 +40,10 @@ void loguj(const char *proces, const char *tekst) {
     sem_post_logger();
 }
 
+
+//funkcja pisząca do pliku raport
 void raport(const char *proces, const char *tekst) {
     FILE *f;
-    time_t t;
-    struct tm *tm_info;
     /* SEKCJA KRYTYCZNA */
     f = fopen(RAPORT_FILE, "a");
     if (!f) {

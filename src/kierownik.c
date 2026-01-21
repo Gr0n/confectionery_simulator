@@ -308,15 +308,17 @@ int main() {
         sem_post_mem();
         
         //tworzenie klientów
-        if (shm->sklep_otwarty == 0) return;
-        int rand_num = rand() % 1000000;
-        if (rand_num == 0 || test_mode == 3){
-            stworz_klienta();
-        }
-        // w trybie testowym 3 zliczanie klientów spamowych
-        if (test_mode == 3){
-            klienci_total++;
-            printf("[KIEROWNIK] Utworzono klienta spamowego, łącznie: %d\n", klienci_total);
+        if (shm->sklep_otwarty == 1)
+        {
+            int rand_num = rand() % 1000000;
+            if (rand_num == 0 || test_mode == 3){
+                stworz_klienta();
+            }
+            // w trybie testowym 3 zliczanie klientów spamowych
+            if (test_mode == 3){
+                klienci_total++;
+                printf("[KIEROWNIK] Utworzono klienta spamowego, łącznie: %d\n", klienci_total);
+            }
         }
     }
     // zamknięcie piekarni i kas
@@ -358,7 +360,7 @@ int main() {
         sem_post_logger();
     }
     
-    /* ===== SPRZĄTANIE IPC ===== */
+    // sprzątanie i zakończenie wątku
     stop_thread = 1;
     pthread_join(input_thread, NULL);
     ipc_cleanup(1);
@@ -366,5 +368,6 @@ int main() {
     sprintf(buffer,"[KIEROWNIK] Zamykanie\n");
     printf("%s", buffer);
     loguj(NAME, buffer);
+
     return 0;
 }

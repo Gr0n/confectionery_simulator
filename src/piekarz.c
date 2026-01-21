@@ -49,6 +49,7 @@ int dodaj_produkt(produkt_t produkt) {
     return podajnik_push_shm(&shm->podajniki[produkt.id], &produkt);  // 1 sztuka
 }
 
+//podsumowanie w razie inwentaryzacji
 void podsumowanie(){
     sem_wait_logger();
     raport(NAME, "Inwentaryzacja - podsumowanie produkcji:\n");
@@ -76,7 +77,10 @@ int main() {
     shm = ipc_get_shm();
 
     loguj("PIEKARZ", "Start pracy piekarza");
+    //czas gotowania
     int cook_cd = 0;
+
+    //Pętla główna piekarza
     while (!ewakuacja && shm->piekarnia_otwarta) {
         if (!(!ewakuacja && shm->piekarnia_otwarta))
         {
@@ -86,11 +90,13 @@ int main() {
         int produkt_index = rand() % 10; // losowy produkt
         produkt_t produkt = produkty[produkt_index];
         sem_wait_mem(); // ochrona pamięci
+        //jeśli nie jest gotowy piec to kontynuuje
         if (cook_cd > 0) {
             cook_cd--;
             sem_post_mem();
             continue;
         }
+        //Zpushowanie produktu do podajnika
         if (shm->podajniki[produkt.id].count>=64) {
             sem_post_mem();
             cook_cd = CZAS_GOTOWANIA;

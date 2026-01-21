@@ -32,11 +32,15 @@ produkt_t produkty[10] = {{0, "Rogalik", 2},
 {7, "Biszkopcik", 6},
 {8, "Pierniczek", 3},
 {9, "Sezamka", 4}};
-
+int id;
 int sprzedane_produkty[10] = {0,0,0,0,0,0,0,0,0,0};
 int kasa_otwarta = 0;
 char paragon[1024];
 
+void cleanup() {
+    if (id==1){unlink(FIFO_KASA1);}
+    if (id==2){unlink(FIFO_KASA2);}
+}
 //obsługa sygnału inwentaryzacji
 void sig_inwentaryzacja(int sig) {
     (void)sig;
@@ -49,15 +53,19 @@ void sig_ewakuacja(int sig) {
     ewakuacja = 1;
     loguj(NAME, "Otrzymano sygnal ewakuacji");
 }
-
+void sigint_handler(int sig) {
+    (void)sig;
+    cleanup();
+    exit(0);
+}
 //inicjalizacja fifo kas
 void init_fifo(int id) {
     if (id == 1) {
-        if (mkfifo(FIFO_KASA1, 0666) == -1) {
+        if (mkfifo(FIFO_KASA1, 0600) == -1) {
             perror("mkfifo kasa1");
         }
     } else {
-        if (mkfifo(FIFO_KASA2, 0666) == -1) {
+        if (mkfifo(FIFO_KASA2, 0600) == -1) {
             perror("mkfifo kasa2");
         }
     }
@@ -97,14 +105,15 @@ void podsumowanie(int id){
 
 // FUNKCJA MAIN KASJERA
 int main(int argc, char **argv) {
-
+    atexit(cleanup);
+    signal(SIGINT, sigint_handler);
     //sprawdzenie argumentów
     if (argc < 2) {
         fprintf(stderr, "Brak argumentu ID\n");
         return 1;
     }
     //pobranie ID kasjera
-    int id = atoi(argv[1]);
+    id = atoi(argv[1]);
     //inicjalizacja fifo kas na podstawie ID
     init_fifo(id);
     int fd_kasa;
