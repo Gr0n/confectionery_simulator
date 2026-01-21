@@ -16,63 +16,14 @@ int shm_fd = -1;
 sem_t *sem_mem = NULL;
 sem_t *sem_klient = NULL;
 sem_t *sem_logger = NULL;
-sem_t *sem_tick_start = NULL;
-sem_t *sem_tick_done  = NULL;
-
 /* ========================= Semafory ========================= */
-
-// ===== tick start =====
-int sem_tick_start_init(int create) {
-    if (create) {
-        sem_tick_start = sem_open("/sem_tick_start", O_CREAT | O_EXCL, 0666, 0);
-        if (sem_tick_start == SEM_FAILED) {
-            if (errno == EEXIST) sem_tick_start = sem_open("/sem_tick_start", 0);
-            else { perror("sem_open tick_start"); return -1; }
-        }
-    } else {
-        sem_tick_start = sem_open("/sem_tick_start", 0);
-        if (sem_tick_start == SEM_FAILED) { perror("sem_open tick_start"); return -1; }
-    }
-    return 0;
-}
-
-void sem_tick_start_wait(void) {
-    if (sem_tick_start) sem_wait(sem_tick_start);
-}
-
-void sem_tick_start_post(void) {
-    if (sem_tick_start) sem_post(sem_tick_start);
-}
-
-// ===== tick done =====
-int sem_tick_done_init(int create) {
-    if (create) {
-        sem_tick_done = sem_open("/sem_tick_done", O_CREAT | O_EXCL, 0666, 0);
-        if (sem_tick_done == SEM_FAILED) {
-            if (errno == EEXIST) sem_tick_done = sem_open("/sem_tick_done", 0);
-            else { perror("sem_open tick_done"); return -1; }
-        }
-    } else {
-        sem_tick_done = sem_open("/sem_tick_done", 0);
-        if (sem_tick_done == SEM_FAILED) { perror("sem_open tick_done"); return -1; }
-    }
-    return 0;
-}
-
-void sem_tick_done_wait(void) {
-    if (sem_tick_done) sem_wait(sem_tick_done);
-}
-
-void sem_tick_done_post(void) {
-    if (sem_tick_done) sem_post(sem_tick_done);
-}
 
 // Semafor limitu klientów:
 
-
+// Inicjalizacja semafora limitu klientów
 int sem_klientlimit_init(int create, int limit) {
     if (create) {
-        sem_klient = sem_open(SEM_KLIENT_NAME, O_CREAT | O_EXCL, 0666, limit);
+        sem_klient = sem_open(SEM_KLIENT_NAME, O_CREAT | O_EXCL, 0600, limit);
         if (sem_klient == SEM_FAILED) {
             if (errno == EEXIST) {
                 sem_klient = sem_open(SEM_KLIENT_NAME, 0);
@@ -87,7 +38,7 @@ int sem_klientlimit_init(int create, int limit) {
     }
     return 0;
 }
-
+// Operacje na semaforze limitu klientów
 int sem_klientlimit_wait(void) {
     if (!sem_klient) return -1;
     return sem_wait(sem_klient);
@@ -97,7 +48,7 @@ int sem_klientlimit_post(void) {
     if (!sem_klient) return -1;
     return sem_post(sem_klient);
 }
-
+// Czyszczenie semafora limitu klientów
 void sem_klientlimit_cleanup(int remove_all) {
     if (sem_klient) {
         sem_close(sem_klient);
@@ -108,9 +59,10 @@ void sem_klientlimit_cleanup(int remove_all) {
 
 // Semafor loggera:
 
+// Inicjalizacja semafora loggera
 int sem_logger_init(int create) {
     if (create) {
-        sem_logger = sem_open(SEM_LOGGER_NAME, O_CREAT | O_EXCL, 0666, 1);
+        sem_logger = sem_open(SEM_LOGGER_NAME, O_CREAT | O_EXCL, 0600, 1);
         if (sem_logger == SEM_FAILED) {
             if (errno == EEXIST) {
                 sem_logger = sem_open(SEM_LOGGER_NAME, 0);
@@ -130,18 +82,18 @@ int sem_logger_init(int create) {
     }
     return 0;
 }
-
+// Operacje na semaforze loggera
 void sem_wait_logger(void) {
     if (sem_logger) 
     {
     sem_wait(sem_logger);
     }
 }
-
 void sem_post_logger(void) {
     if (sem_logger) sem_post(sem_logger);
 }
 
+// Czyszczenie semafora loggera
 void sem_logger_cleanup(int remove_all) {
     if (sem_logger) {
         sem_close(sem_logger);
@@ -152,17 +104,18 @@ void sem_logger_cleanup(int remove_all) {
 
 /* ========================= Pamięć współdzielona ========================= */
 
+// Inicjalizacja pamięci współdzielonej i semafora pamięci
 int ipc_init(int create) {
     /* Tworzenie lub otwarcie SHM */
     if (create) {
-        shm_fd = shm_open(SHM_NAME, O_CREAT | O_RDWR, 0666);
+        shm_fd = shm_open(SHM_NAME, O_CREAT | O_RDWR, 0600);
         if (shm_fd == -1) { perror("shm_open create"); return -1; }
 
         if (ftruncate(shm_fd, sizeof(shm_data_t)) == -1) {
             perror("ftruncate"); return -1;
         }
     } else {
-        shm_fd = shm_open(SHM_NAME, O_RDWR, 0666);
+        shm_fd = shm_open(SHM_NAME, O_RDWR, 0600);
         if (shm_fd == -1) { perror("shm_open open"); return -1; }
     }
 
@@ -179,7 +132,7 @@ int ipc_init(int create) {
 
     /* Semafor pamięci */
     if (create) {
-        sem_mem = sem_open(SEM_MEM_NAME, O_CREAT | O_EXCL, 0666, 1);
+        sem_mem = sem_open(SEM_MEM_NAME, O_CREAT | O_EXCL, 0600, 1);
         if (sem_mem == SEM_FAILED) {
             if (errno == EEXIST) {
                 sem_mem = sem_open(SEM_MEM_NAME, 0);
@@ -192,12 +145,10 @@ int ipc_init(int create) {
         if (sem_mem == SEM_FAILED) { perror("sem_open get mem"); return -1; }
     }
 
-    if (sem_tick_start_init(create) != 0) return -1;
-    if (sem_tick_done_init(create) != 0) return -1;
-
     return 0;
 }
 
+// Pobranie wskaźnika do pamięci współdzielonej
 shm_data_t* ipc_get_shm(void) {
     return shm;
 }
@@ -206,11 +157,11 @@ shm_data_t* ipc_get_shm(void) {
 void sem_wait_mem(void) {
     if (sem_mem) sem_wait(sem_mem);
 }
-
 void sem_post_mem(void) {
     if (sem_mem) sem_post(sem_mem);
 }
 
+// Czyszczenie zasobów IPC
 void ipc_cleanup(int remove_all) {
     if (shm) {
         munmap(shm, sizeof(shm_data_t));
@@ -231,7 +182,5 @@ void ipc_cleanup(int remove_all) {
 
     sem_klientlimit_cleanup(remove_all);
     sem_logger_cleanup(remove_all);
-    if (sem_tick_start) { sem_close(sem_tick_start); if(remove_all) sem_unlink("/sem_tick_start"); }
-    if (sem_tick_done)  { sem_close(sem_tick_done);  if(remove_all) sem_unlink("/sem_tick_done");  }
 
 }
