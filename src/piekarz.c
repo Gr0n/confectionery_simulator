@@ -54,7 +54,7 @@ void podsumowanie(){
     raport(NAME, "Inwentaryzacja - podsumowanie produkcji:\n");
     for(int i=0;i<10;i++){
         char buf[64];
-        sprintf(buf, "Produkt %s, sprzedano: %d szt.\n", produkty[i].name, wyprodukowane_produkty[i]);
+        sprintf(buf, "Produkt %s, wyprodukowano: %d szt.\n", produkty[i].name, wyprodukowane_produkty[i]);
         raport(NAME, buf);
     }
     sem_post_logger();

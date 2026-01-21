@@ -13,7 +13,7 @@
 #include <termios.h>
 
 #define LICZBA_KAS 2
-#define D_MAX_LICZBA_KLIENTOW 64
+#define D_MAX_LICZBA_KLIENTOW 1024
 #define MAX_KLIENTOW_W_SKLEPIE 10
 #define D_PRODUKTOW 10
 #define D_CZAS_TRWANIA 6 // w sekundach
@@ -29,14 +29,17 @@ pid_t piekarz_pid;
 pid_t kasjer_pid[LICZBA_KAS];
 pid_t klient_pid[D_MAX_LICZBA_KLIENTOW]; 
 
+int test_mode = 0;
+
 void wyslij_inwentaryzacje() {
     printf("[KIEROWNIK] SYGNAL: INWENTARYZACJA\n");
 
     sem_wait_mem();
     shm->inwentaryzacja = 1;
     sem_post_mem();
-
+    if (test_mode != 1){
     kill(piekarz_pid, SIGUSR1);
+    }
     for (int i = 0; i < LICZBA_KAS; i++)
         kill(kasjer_pid[i], SIGUSR1);
 }
@@ -47,9 +50,9 @@ void wyslij_ewakuacje() {
     sem_wait_mem();
     shm->ewakuacja = 1;
     sem_post_mem();
-
-    kill(piekarz_pid, SIGUSR2);
-    
+    if (test_mode != 1){
+        kill(piekarz_pid, SIGUSR2);
+    }
     for (int i = 0; i < LICZBA_KAS; i++)
         kill(kasjer_pid[i], SIGUSR2);
 
@@ -77,18 +80,27 @@ void stworz_klienta() {
         exit(1);
     }
 }
-
+int klienci_total = 0;
 void tick() {
+    if (shm->sklep_otwarty == 0) return;
     int rand_num = rand() % 1000000;
-    if (rand_num == 0){
+    if (rand_num == 0 || test_mode == 3){
         stworz_klienta();
     }
+    if (test_mode == 3){
+        klienci_total++;
+        printf("[KIEROWNIK] Utworzono klienta spamowego, łącznie: %d\n", klienci_total);
+    }
+
 }
 
 void menu() {
     printf("Kierownik sklepu\n");
     printf("1. Uruchom symulację\n");
     printf("2. Ustaw czas trwania symulacji (obecny: %d minut)\n", CZAS_TRWANIA);
+    printf("3. Uruchom test 1 (bez piekarza)\n");
+    printf("4. Uruchom test 2 (podniesienie semafora klientow do maks)\n");
+    printf("5. Uruchom test 3 (Spam klientow)\n");
     printf("Wybierz opcję: ");
     int opt = getchar();
     getchar();
@@ -113,6 +125,18 @@ void menu() {
             }
             menu();
             break;
+        case '3':
+            test_mode = 1;
+            printf("Tryb testowy 1 włączony (bez piekarza)\n");
+            return;
+        case '4':
+            test_mode = 2;
+            printf("Tryb testowy 2 włączony (maksymalna liczba klientów)\n");
+            return;
+        case '5':
+            test_mode = 3;
+            printf("Tryb testowy 3 włączony (spam klientów)\n");
+            return;
         default:
             printf("Nieprawidłowa opcja\n");
             menu();
@@ -204,13 +228,15 @@ int main() {
     signal(SIGCHLD, sigchld_handler);
 
     //uruchomienie piekarza i kasjerów
-    piekarz_pid = fork();
-    if (piekarz_pid == 0) {
-        execl("./piekarz", "piekarz", NULL);
-        perror("Błąd uruchamiania piekarza");
-        loguj(NAME, "Błąd uruchamiania piekarza");
-        ipc_cleanup(1);
-        exit(1);
+    if (test_mode != 1){
+        piekarz_pid = fork();
+        if (piekarz_pid == 0) {
+            execl("./piekarz", "piekarz", NULL);
+            perror("Błąd uruchamiania piekarza");
+            loguj(NAME, "Błąd uruchamiania piekarza");
+            ipc_cleanup(1);
+            exit(1);
+        }
     }
     
     for (int i = 0; i < LICZBA_KAS; i++) {
@@ -224,7 +250,11 @@ int main() {
             exit(1);
         }
     }
-    
+    if (test_mode == 2) {
+        for (int i = 0; i < MAX_KLIENTOW_W_SKLEPIE; i++) {
+            sem_klientlimit_wait(); // Zwiększ limit klientów do maksimum (żaden klient nie powinien wejść)
+        }
+    }
     sem_wait_mem();
     shm->kasy_otwarte[0] = 1;
     sem_post_mem();
@@ -271,6 +301,11 @@ int main() {
     shm->sklep_otwarty = 0;
     shm->piekarnia_otwarta = 0;
     sem_post_mem();
+    if (test_mode == 2) {
+        for (int i = 0; i < MAX_KLIENTOW_W_SKLEPIE; i++) {
+            sem_klientlimit_post(); //czyszczenie semafora
+        }
+    }
     loguj(NAME, "Oczekiwanie na zakończenie procesów potomnych");
     while (wait(NULL) > 0);
     loguj(NAME, "Koniec procesów potomnych");

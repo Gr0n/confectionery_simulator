@@ -122,7 +122,7 @@ int main(int argc, char **argv) {
     ioctl(fd_kasa, FIONREAD, &b);
     loguj(NAME, "Kasjer gotowy do pracy");
     paragon[0] = '\0';
-    while ((!ewakuacja && shm->sklep_otwarty==1) || b > 0) {
+    while ((!ewakuacja && shm->piekarnia_otwarta==1) || b > 0) {
         fifo_req_t msg;
         kasa_otwarta = shm->kasy_otwarte[id - 1];
 
