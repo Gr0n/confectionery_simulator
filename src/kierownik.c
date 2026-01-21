@@ -9,22 +9,26 @@
 #include "podajnik.h"
 #include "ipc.h"
 #include "logger.h"
+#include <pthread.h>
+#include <termios.h>
+
 #define LICZBA_KAS 2
 #define D_MAX_LICZBA_KLIENTOW 64
 #define MAX_KLIENTOW_W_SKLEPIE 10
 #define D_PRODUKTOW 10
-#define D_CZAS_TRWANIA 2
-#define START_TIME 800  // 8:00 AM
+#define D_CZAS_TRWANIA 2 // w sekundach
 #define NAME "KIEROWNIK"
-int LICZBA_KLIENTOW = D_MAX_LICZBA_KLIENTOW;
+int LICZBA_KLIENTOW = MAX_KLIENTOW_W_SKLEPIE;
 int ILOSC_PRODUKTOW = D_PRODUKTOW;
 int CZAS_TRWANIA = D_CZAS_TRWANIA;
-int aktywne_procesy = 0;
-int klientow_w_sklepie = 0;
+static volatile sig_atomic_t stop_thread = 0;
+pthread_t input_thread;
+
+
 
 pid_t piekarz_pid;
 pid_t kasjer_pid[LICZBA_KAS];
-pid_t klient_pid[32]; // max 32 klientów
+pid_t klient_pid[D_MAX_LICZBA_KLIENTOW]; // max 32 klientów
 
 
 /* =========================== SYGNAŁY =========================== */
@@ -49,63 +53,52 @@ void wyslij_ewakuacje() {
     sem_post_mem();
 
     kill(piekarz_pid, SIGUSR2);
-    /*
+    
     for (int i = 0; i < LICZBA_KAS; i++)
         kill(kasjer_pid[i], SIGUSR2);
 
-    for (int i = 0; i < LICZBA_KLIENTOW; i++)
+    for (int i = 0; i < D_MAX_LICZBA_KLIENTOW; i++)
         kill(klient_pid[i], SIGUSR2);
-    */
+    
 }
 
 /* =========================== FUNKCJE =========================== */
 
-void tick() {
-    int rand_num = rand() % 100;
-    // tutaj możesz losować zdarzenia w sklepie
-}
+void stworz_klienta() {
 
-void stworz_klienta(int indeks) {
-    // czekamy jeśli limit klientów osiągnięty
-    sem_klientlimit_wait();
+    int idx = -1;
+    for (int i = 0; i < D_MAX_LICZBA_KLIENTOW; i++) {
+        if (klient_pid[i] == 0) {
+            idx = i;
+            break;
+        }
+    }
+    if (idx == -1) return; // brak miejsca
 
-    klient_pid[indeks] = fork();
-    if (klient_pid[indeks] == 0) {
+    klient_pid[idx] = fork();
+    if (klient_pid[idx] == 0) {
         execl("./klient", "klient", NULL);
         perror("Błąd uruchamiania klienta");
         exit(1);
     }
-    aktywne_procesy++;
 }
 
-/* =========================== MENU =========================== */
+void tick() {
+    int rand_num = rand() % 1000000;
+    if (rand_num == 0){
+        stworz_klienta();
+    }
+    // tutaj możesz losować zdarzenia w sklepie
+}
 
 void menu() {
     printf("Kierownik sklepu\n");
-    printf("1. Ustaw czas trwania symulacji w godzinach symulacyjnych (D: 8)\n");
-    printf("2. Ustaw pojemność sklepu (D: 10)\n");
-    printf("3. Ustaw ilość produktów (D: 10)\n");
-    printf("4. Uruchom symulację\n");
+    printf("1. Uruchom symulację\n");
     printf("Wybierz opcję: ");
     int opt = getchar();
     getchar(); // zjada \n
     switch (opt) {
         case '1':
-            printf("Podaj czas trwania symulacji w godzinach symulacyjnych: ");
-            scanf("%d", &CZAS_TRWANIA);
-            getchar();
-            break;
-        case '2':
-            printf("Podaj pojemność sklepu: ");
-            scanf("%d", &LICZBA_KLIENTOW);
-            getchar();
-            break;
-        case '3':
-            printf("Podaj ilość produktów: ");
-            scanf("%d", &ILOSC_PRODUKTOW);
-            getchar();
-            break;
-        case '4':
             return;
         default:
             printf("Nieprawidłowa opcja\n");
@@ -113,7 +106,50 @@ void menu() {
     }
 }
 
+void sigchld_handler(int sig) {
+    (void)sig;
+
+    while (1) {
+        int status;
+        pid_t pid = waitpid(-1, &status, WNOHANG);
+        if (pid <= 0) break;
+
+        for (int i = 0; i < D_MAX_LICZBA_KLIENTOW; i++) {
+            if (klient_pid[i] == pid) {
+                klient_pid[i] = 0;
+                
+                printf("[KIEROWNIK] Klient %d wyszedl\n", pid);
+                break;
+            }
+        }
+    }
+}
 /* =========================== MAIN =========================== */
+
+void *input_thread_func(void *arg) {
+    (void)arg;
+    while (!stop_thread) {
+        int c = getchar();
+        if (c == EOF) continue;
+
+        if (c == '1') {
+            wyslij_ewakuacje();
+        } else if (c == '2') {
+            wyslij_inwentaryzacje();
+        }
+
+        // zjada \n
+        if (c != '\n') {
+            int ch;
+            while ((ch = getchar()) != '\n' && ch != EOF);
+        }
+    }
+    return NULL;
+}
+
+
+
+
 
 int main() {
 
@@ -142,7 +178,7 @@ int main() {
         loguj(NAME, "Błąd inicjalizacji semafora limitu klientów");
         exit(1);
     }
-
+    signal(SIGCHLD, sigchld_handler);
 
     
     piekarz_pid = fork();
@@ -153,7 +189,6 @@ int main() {
         ipc_cleanup(1);
         exit(1);
     }
-    aktywne_procesy++;
     
     for (int i = 0; i < LICZBA_KAS; i++) {
         kasjer_pid[i] = fork();
@@ -165,12 +200,14 @@ int main() {
             ipc_cleanup(1);
             exit(1);
         }
-        aktywne_procesy++;
     }
     
     sem_wait_mem();
     shm->kasy_otwarte[0] = 1;
     sem_post_mem();
+    
+    pthread_create(&input_thread, NULL, input_thread_func, NULL);
+
     
     /* ===== SYMULACJA CZASU ===== */
     time_t czas_start = time(NULL);
@@ -178,18 +215,19 @@ int main() {
     while (time(NULL) < godz_koniec) {
         //usleep(100000); // 0.1 sekundy = 1 minuta symulacyjna
         //loguj(NAME, "semtickstart post");
+        
         sem_wait_mem();
         int value;
         sem_getvalue(sem_klient, &value);
         
-        if (value >= MAX_KLIENTOW_W_SKLEPIE/2 && shm->kasy_otwarte[1] == 0)
+        if (value <= MAX_KLIENTOW_W_SKLEPIE/2 && shm->kasy_otwarte[1] == 0)
         {
             shm->kasy_otwarte[1] = 1;
             sprintf(buffer, "[KIEROWNIK] Otwieram kasę 2\n");
             printf("%s", buffer);
             loguj(NAME, buffer);
         }
-        else if (value < MAX_KLIENTOW_W_SKLEPIE/2 && shm->kasy_otwarte[1] == 1)
+        else if (value > MAX_KLIENTOW_W_SKLEPIE/2 && shm->kasy_otwarte[1] == 1)
         {
             shm->kasy_otwarte[1] = 0;
             sprintf(buffer, "[KIEROWNIK] Zamykam kasę 2\n");
@@ -199,57 +237,29 @@ int main() {
 
         shm->aktualny_czas = time(NULL);
         sem_post_mem();
-        /*
-        sprintf(buffer, "[KIEROWNIK] Czas symulacji: %02d:%02d\n",
-               (shm->aktualny_czas) / 60, (shm->aktualny_czas) % 60);
-        printf("%s", buffer);
-        loguj(NAME, buffer);
-        */
-        // START TURY
-        //loguj(NAME, "semtickstart postpre");
-        /*
-        for(int i=0; i<aktywne_procesy; i++){
-            sem_tick_start_post();
-           // loguj(NAME, "semtickstart post");
-        }
-
-        // CZEKAJ NA ZAKOŃCZENIE TURY
-        for(int i=0; i<aktywne_procesy; i++){
-            sem_tick_done_wait();
-           // loguj(NAME, "semtick done wait");
-        }
-        */
         tick();
     }
-    /*
-    sleep(2);
-    wyslij_inwentaryzacje();
-    sleep(2);
-    */
-    //sleep(0);
+    
+    //wyslij_inwentaryzacje();
+    stop_thread = 1;
+    pthread_join(input_thread, NULL);
+
+
     //wyslij_ewakuacje();
     
-    //loguj(NAME, "wait mem close shop");
+    loguj(NAME, "wait mem close shop");
     sem_wait_mem();
+    shm->kasy_otwarte[0] = 0;
+    shm->kasy_otwarte[1] = 0;
     shm->sklep_otwarty = 0;
     sem_post_mem();
-    //loguj(NAME, "end mem close shop");
-    /* ===== CZEKAJ NA DZIECI ===== */
-    for (int i = 0; i < aktywne_procesy; i++) 
-    {
-    sem_tick_start_post();
-    }
-    for (int i = 0; i < 1 + LICZBA_KAS + LICZBA_KLIENTOW; i++)
-    {
-        //loguj(NAME, "waiting for child");
-        wait(NULL);
-        //loguj(NAME, "child ended");
-    }
+    loguj(NAME, "end mem close shop");
+    while (wait(NULL) > 0);
+    loguj(NAME, "end mem close shop");
     /* ===== RAPORT KOŃCOWY ===== */
     
     sprintf(buffer, "\n[KIEROWNIK] RAPORT KOŃCOWY\n");
     printf("%s", buffer);
-    loguj(NAME, buffer);
     for (int p = 0; p < ILOSC_PRODUKTOW; p++) {
         int sprzedano = 0;
         for (int k = 0; k < LICZBA_KAS; k++)

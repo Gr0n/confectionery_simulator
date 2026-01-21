@@ -83,8 +83,8 @@ int main() {
         if (shm->podajniki[produkt.id].count>=64) {
             sem_post_mem();
             char buf[64];
-            sprintf(buf, "Podajnik pełen: id %d\n", produkt.id);
-            loguj("PIEKARZ", buf);
+            //sprintf(buf, "Podajnik pełen: id %d\n", produkt.id);
+            //loguj("PIEKARZ", buf);
             //sem_tick_done_post();
             cook_cd = CZAS_GOTOWANIA; // ustaw czas gotowania
             continue; // podajnik pełny, spróbuj później
@@ -93,8 +93,8 @@ int main() {
             if (dodaj_produkt(produkt) == 0) {
                 shm->wyprodukowane[produkt.id]++;
                 char buf[64];
-                sprintf(buf, "Wyprodukowano produkt %s\n", produkt.name);
-                loguj("PIEKARZ", buf);
+                //sprintf(buf, "Wyprodukowano produkt %s\n", produkt.name);
+                //loguj("PIEKARZ", buf);
             }
         }
         cook_cd = CZAS_GOTOWANIA; // ustaw czas gotowania

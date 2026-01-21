@@ -4,17 +4,17 @@
 #include <unistd.h>
 #include <signal.h>
 #include <time.h>
-
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <sys/ioctl.h>
 #include "ipc.h"
 #include "logger.h"
+#include "podajnik.h"
 
-#define MAX_ZAKUPOW 3
-
+#define MAX_ZAKUPOW 5
+#define NAME "KLIENT"
 static volatile sig_atomic_t ewakuacja = 0;
 
-shm_data_t *shm;
-sem_t *sem_ipc;
-sem_t *sem_limit;
 
 /* ================= SYGNALY ================= */
 
@@ -26,16 +26,21 @@ void sig_ewakuacja(int sig) {
 
 /* ================= ZAKUPY ================= */
 
-void losuj_zakupy(int zakupy[MAX_ZAKUPOW]) {
-    for (int i = 0; i < MAX_ZAKUPOW; i++)
-        zakupy[i] = rand() % MAX_PRODUKTOW;
+void losuj_zakupy(int zakupy[D_PRODUKTOW]) {
+    for (int i = 0; i < D_PRODUKTOW; i++)
+        zakupy[i] = 0;
+    int rozne_produkty = (rand() % 14) + 2;
+    for (int i = 0; i < rozne_produkty; i++)
+        zakupy[rand()%D_PRODUKTOW] += 1;
 }
 
 /* ================= MAIN ================= */
 
 int main() {
     srand(getpid() ^ time(NULL));
-
+    char reply_fifo[64];
+    sprintf(reply_fifo, "/tmp/klient_%d_fifo", getpid());
+    mkfifo(reply_fifo, 0666);
     signal(SIGUSR2, sig_ewakuacja);
 
     if (ipc_init(0) == -1) {
@@ -43,49 +48,137 @@ int main() {
         exit(1);
     }
 
-    sem_ipc = ipc_get_sem();
     shm = ipc_get_shm();
 
-    if (sem_klientlimit_init(0) == -1) {
+    if (sem_klientlimit_init(0, 0) == -1) {
         perror("sem_limit_init klient");
         exit(1);
     }
-    sem_limit = sem_klientlimit_get();
 
     /* ===== WEJSCIE DO SKLEPU ===== */
-    loguj("KLIENT", "Czeka na wejscie do sklepu");
-    sem_wait(sem_limit);
-    loguj("KLIENT", "Wszedl do sklepu");
+    
+    loguj(NAME, "Czeka na wejscie do sklepu");
+    sem_klientlimit_wait();
+
+    int koszyk[10] = {0};
+    if (!ewakuacja && shm->sklep_otwarty==1)
+    {
+    loguj(NAME, "Wszedl do sklepu");
 
     /* ===== ZAKUPY ===== */
-    int zakupy[MAX_ZAKUPOW];
+    int zakupy[10] = {0};
     losuj_zakupy(zakupy);
+    char buf_zakupy[512];
+    int pos = 0;
 
-    for (int i = 0; i < MAX_ZAKUPOW; i++) {
-        if (ewakuacja) break;
+    pos += snprintf(buf_zakupy + pos, sizeof(buf_zakupy) - pos,
+                    "Lista zakupow: ");
+
+    for (int i = 0; i < D_PRODUKTOW; i++) {
+        if (ewakuacja || shm->sklep_otwarty == 0) break;
+        if (zakupy[i] > 0) {
+            pos += snprintf(buf_zakupy + pos, sizeof(buf_zakupy) - pos,
+                            "%d x %d, ", zakupy[i], i);
+            if (pos >= (int)sizeof(buf_zakupy) - 1) break;
+        }
+    }
+
+    loguj(NAME, buf_zakupy);
+
+    for (int i = 0; i < D_PRODUKTOW; i++) {
+        if (ewakuacja || shm->sklep_otwarty==0) break;
 
         int p = zakupy[i];
-
-        sem_wait(sem_ipc);
-        shm->sprzedane[0][p]++;  /* uproszczenie: klient zawsze idzie do kasy 0 */
-        sem_post(sem_ipc);
-
-        char buf[64];
-        sprintf(buf, "Wzial produkt %d", p);
-        loguj("KLIENT", buf);
-
-        sleep(1);
+        sem_wait_mem();
+        for (int j = 0; j < p; j++) {
+            if (ewakuacja) break;
+            char buf[64];
+            sprintf(buf, "Szukam produktu %d na podajnikach", i);
+            loguj(NAME, buf);
+            produkt_t produkt;
+            if (podajnik_pop_shm(&shm->podajniki[i], &produkt) == -1) {
+                loguj(NAME, "Brak produktu na podajniku, idzie do następnego");
+                break;
+            }
+            koszyk[i]++;
+            sprintf(buf, "Wzial produkt %d", i);
+            loguj(NAME, buf);
+            buf[0] = '\0';
+        }
+        sem_post_mem();        
     }
+
+
 
     if (ewakuacja) {
-        loguj("KLIENT", "Przerwal zakupy i opuszcza sklep");
+        loguj(NAME, "Przerwal zakupy i opuszcza sklep");
     } else {
-        loguj("KLIENT", "Zakonczyl zakupy i idzie do kasy");
+        loguj(NAME, "Zakonczyl zakupy i idzie do kasy");
     }
 
+
+    }
+    if (ewakuacja || shm->sklep_otwarty==0) {
+
+        unlink(reply_fifo);
+        sem_klientlimit_post();
+        loguj(NAME, "Opuscil sklep");
+        ipc_cleanup(0);
+        return 0;
+    }
+    int b1, b2;
+    int fd_kasa1 = open(FIFO_KASA1, O_WRONLY | O_NONBLOCK);
+    int fd_kasa2 = open(FIFO_KASA2, O_WRONLY | O_NONBLOCK);
+    if ((fd_kasa1 == -1 && fd_kasa2 == -1) || shm->sklep_otwarty==0) {
+        loguj(NAME, "Sklep zamknięty, pomijam kasy");
+        
+    }
+    else
+    {
+        ioctl(fd_kasa1, FIONREAD, &b1);
+        ioctl(fd_kasa2, FIONREAD, &b2);
+
+        fifo_req_t msg = {0};
+        msg.klient_id = getpid();
+        memcpy(msg.produkt_id, koszyk, sizeof(msg.produkt_id));
+        strcpy(msg.reply_fifo, reply_fifo);
+
+        strcpy(msg.reply_fifo, reply_fifo);
+        if (b1 > b2) {
+            close(fd_kasa1);
+            loguj(NAME, "Idzie do kasy 2");
+            if (write(fd_kasa2, &msg, sizeof(msg)) == -1) {
+                perror("write to kasa2");
+            }
+            close(fd_kasa2);
+        }
+        else {
+            close(fd_kasa2);
+            loguj(NAME, "Idzie do kasy 1");
+            if (write(fd_kasa1, &msg, sizeof(msg)) == -1) {
+                perror("write to kasa1");
+            }
+            close(fd_kasa1);
+        }
+        loguj(NAME, "Czeka na paragon");
+        int fd_reply = open(reply_fifo, O_RDONLY);
+        loguj(NAME, "Otrzymal paragon");
+        char paragon[1024];
+        paragon[0] = '\0';
+        if (read(fd_reply, paragon, sizeof(paragon)) == -1) {
+            perror("read from reply_fifo");
+        }
+        char buf[1024];
+        sprintf(buf, "PARAGON: %s\n", paragon);
+        loguj(NAME, buf);
+        
+        close(fd_reply);
+        unlink(reply_fifo);
+        
+    }
     /* ===== WYJSCIE ===== */
-    sem_post(sem_limit);
-    loguj("KLIENT", "Opuscil sklep");
+    sem_klientlimit_post();
+    loguj(NAME, "Opuscil sklep");
 
     ipc_cleanup(0);
     sem_klientlimit_cleanup(0);

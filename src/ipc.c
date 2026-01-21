@@ -1,5 +1,5 @@
+#define _XOPEN_SOURCE 700
 #include "ipc.h"
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -67,9 +67,6 @@ void sem_tick_done_post(void) {
     if (sem_tick_done) sem_post(sem_tick_done);
 }
 
-void tick_end(int num_processes) {
-    return;
-}
 // Semafor limitu klientów:
 
 
@@ -131,10 +128,14 @@ int sem_logger_init(int create) {
         }
         
     }
+    return 0;
 }
 
 void sem_wait_logger(void) {
-    if (sem_logger) sem_wait(sem_logger);
+    if (sem_logger) 
+    {
+    sem_wait(sem_logger);
+    }
 }
 
 void sem_post_logger(void) {

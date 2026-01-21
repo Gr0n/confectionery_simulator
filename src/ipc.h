@@ -1,6 +1,6 @@
 #ifndef IPC_H
 #define IPC_H
-
+#define _XOPEN_SOURCE 700
 #include <semaphore.h>
 #include <fcntl.h>      // O_CREAT, O_RDWR
 #include <sys/mman.h>   // shm_open, mmap
@@ -36,7 +36,7 @@ typedef struct {
 
 typedef struct {
     int klient_id;
-    int produkt_id[32];
+    int produkt_id[10];
     char reply_fifo[FIFO_NAME_LEN];
 } fifo_req_t;
 

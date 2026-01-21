@@ -5,7 +5,7 @@
 #include "ipc.h"
 
 #define LOG_FILE "log"
-
+#define RAPORT_FILE "raport"
 void loguj(const char *proces, const char *tekst) {
     FILE *f;
     time_t t;
@@ -28,6 +28,31 @@ void loguj(const char *proces, const char *tekst) {
         tm_info->tm_min,
         tm_info->tm_sec,
         getpid(),
+        proces,
+        tekst
+    );
+
+    fflush(f);
+    fclose(f);
+
+    sem_post_logger();
+}
+
+void raport(const char *proces, const char *tekst) {
+    FILE *f;
+    time_t t;
+    struct tm *tm_info;
+    /* SEKCJA KRYTYCZNA */
+    sem_wait_logger();
+
+    f = fopen(RAPORT_FILE, "a");
+    if (!f) {
+        sem_post_logger();
+        return;
+    }
+
+    fprintf(f,
+        "[%-10s] | %s\n",
         proces,
         tekst
     );

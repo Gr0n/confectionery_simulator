@@ -4,3 +4,4 @@
 #include <unistd.h>
 
 void loguj(const char *proces, const char *tekst);
+void raport(const char *proces, const char *tekst);

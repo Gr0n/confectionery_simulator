@@ -31,9 +31,9 @@ produkt_t produkty[10] = {{0, "Rogalik", 2},
 {8, "Pierniczek", 3},
 {9, "Sezamka", 4}};
 
-int *sprzedane_produkty[10] = {0,0,0,0,0,0,0,0,0,0};
+int sprzedane_produkty[10] = {0,0,0,0,0,0,0,0,0,0};
 int kasa_otwarta = 0;
-char paragon[128];
+char paragon[1024];
 
 //shm_data_t *shm;
 void sig_inwentaryzacja(int sig) {
@@ -63,17 +63,30 @@ void init_fifo(int id) {
 
 
 /* Dodaj produkt na podajnik FIFO */
-void sprzedaj_produkt(produkt_t produkt) {
-    sprzedane_produkty[produkt.id]++;
+void sprzedaj_produkt(produkt_t produkt, int ilosc) {
+    sprzedane_produkty[produkt.id]+=ilosc;
     char buf[64];
-    sprintf(buf, "Sprzedano produkt %s\n", produkt.name);
+    sprintf(buf, "Sprzedano produkt %s*%d\n", produkt.name, ilosc);
     loguj(NAME, buf);
-    sprintf(buf, "id: %d, %f zł\n", produkt.id, produkt.cena);
+    buf[0] = '\0';
+    sprintf(buf, "id: %d, %d szt. %f zł\n", produkt.id, ilosc, produkt.cena*ilosc);
     strcat(paragon, buf);
+    loguj(NAME, buf);
 }
 
 void wyczysc_paragon() {
     paragon[0] = '\0';
+}
+
+void podsumowanie(){
+    char buf_title[64];
+    sprintf(buf_title, "Kasjer %s - inwentaryzacja", NAME);
+    raport(NAME, buf_title);
+    for(int i=0;i<10;i++){
+        char buf[64];
+        sprintf(buf, "Produkt %s, sprzedano: %d szt.\n", produkty[i].name, sprzedane_produkty[i]);
+        raport(NAME, buf);
+    }
 }
 
 
@@ -110,13 +123,14 @@ int main(int argc, char **argv) {
     }
 
     shm = ipc_get_shm();
-
+    int b;
+    ioctl(fd_kasa, FIONREAD, &b);
     loguj(NAME, "Kasjer gotowy do pracy");
-    while (!ewakuacja && shm->sklep_otwarty) {
+    paragon[0] = '\0';
+    while ((!ewakuacja && shm->sklep_otwarty) || b > 0) {
         fifo_req_t msg;
         kasa_otwarta = shm->kasy_otwarte[id - 1];
 
-        int b;
         ioctl(fd_kasa, FIONREAD, &b);
 
         // jeśli FIFO puste i kasa zamknięta -> nic nie robimy
@@ -143,6 +157,7 @@ int main(int argc, char **argv) {
             perror("read");
             continue;
         }
+        loguj(NAME, "Obsługa klienta...");
 
         int fd_reply = open(msg.reply_fifo, O_WRONLY);
         if (fd_reply == -1) {
@@ -150,19 +165,25 @@ int main(int argc, char **argv) {
             continue;
         }
 
-        for (int i = 0; i < 32; i++) {
+        for (int i = 0; i < 10; i++) {
+            char buf[64];
+            sprintf(buf, "Produkt ID: %d, Ilość: %d\n", i, msg.produkt_id[i]);
+            loguj(NAME, buf);
             if (msg.produkt_id[i] == 0)
-                break;
-            sprzedaj_produkt(produkty[msg.produkt_id[i] - 1]);
+                continue;
+            sprzedaj_produkt(produkty[i], msg.produkt_id[i]);
         }
-
+        loguj(NAME, "Wystawianie paragonu:");
         write(fd_reply, paragon, strlen(paragon) + 1);
         close(fd_reply);
         wyczysc_paragon();
     }
-
-
-    loguj(NAME, "Koniec pracy - ewakuacja");
+    if (inwentaryzacja) {
+        podsumowanie();
+    }
+    char buf[64];
+    sprintf(buf, "Koniec pracy kasjera %d", id);
+    loguj(NAME, buf);
     if (id == 1) {
         close(fd_kasa);
         unlink(FIFO_KASA1);
