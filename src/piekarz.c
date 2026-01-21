@@ -78,15 +78,10 @@ int main() {
     loguj("PIEKARZ", "Start pracy piekarza");
     int cook_cd = 0;
     while (!ewakuacja && shm->sklep_otwarty) {
-        //loguj("PIEKARZ", "starttickwait");
-        
-        //sem_tick_start_wait();
         if (!(!ewakuacja && shm->sklep_otwarty))
         {
             break;
         }
-       // loguj("PIEKARZ", "starttickcritical");
-        //loguj("PIEKARZ", "semtickstartwait");
         int sztuk = 1 + rand() % 3; // losowa liczba sztuk
         int produkt_index = rand() % 10; // losowy produkt
         produkt_t produkt = produkty[produkt_index];
@@ -94,34 +89,21 @@ int main() {
         if (cook_cd > 0) {
             cook_cd--;
             sem_post_mem();
-            //sem_tick_done_post();
-            continue; // czekaj na kolejny tick
+            continue;
         }
         if (shm->podajniki[produkt.id].count>=64) {
             sem_post_mem();
-            char buf[64];
-            //sprintf(buf, "Podajnik pełen: id %d\n", produkt.id);
-            //loguj("PIEKARZ", buf);
-            //sem_tick_done_post();
-            cook_cd = CZAS_GOTOWANIA; // ustaw czas gotowania
-            continue; // podajnik pełny, spróbuj później
+            cook_cd = CZAS_GOTOWANIA;
+            continue; // podajnik pełny
         }
         for (int i = 0; i < sztuk; i++) {
             if (dodaj_produkt(produkt) == 0) {
                 shm->wyprodukowane[produkt.id]++;
-                char buf[64];
                 wyprodukowane_produkty[produkt.id]++;
-                //sprintf(buf, "Wyprodukowano produkt %s\n", produkt.name);
-                //loguj("PIEKARZ", buf);
             }
         }
         cook_cd = CZAS_GOTOWANIA; // ustaw czas gotowania
         sem_post_mem();
-        //loguj("PIEKARZ", "sempostmem");
-        //sem_tick_done_post();
-        //loguj("PIEKARZ", "semtickdonepost");
-        //tick_end(shm->aktualna_liczba_procesow);
-        //sleep(0.1); 
     }
     if (inwentaryzacja) {
         podsumowanie();

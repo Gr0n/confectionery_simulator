@@ -200,7 +200,7 @@ int main() {
     pthread_create(&input_thread, NULL, input_thread_func, NULL);
 
     time_t czas_start = time(NULL);
-    int godz_koniec = czas_start + CZAS_TRWANIA*60; // w minutach
+    int godz_koniec = czas_start + CZAS_TRWANIA*1; // w minutach
     while (time(NULL) < godz_koniec) {
         sem_wait_mem();
         int value;
@@ -242,6 +242,7 @@ int main() {
     
     sprintf(buffer, "\n[KIEROWNIK] RAPORT KOŃCOWY\n");
     printf("%s", buffer);
+    sem_wait_logger();
     if (shm->inwentaryzacja)
     {
         loguj(NAME, "[KIEROWNIK] Inwentaryzacja została przeprowadzona");
@@ -249,11 +250,11 @@ int main() {
         for (int p = 0; p < ILOSC_PRODUKTOW; p++) {
             int w_podajniku = 0;
             w_podajniku = shm->podajniki[p].count;
-            sprintf(buffer, "Produkt %d: w podajniku: %d", p, shm->wyprodukowane[p]);
+            sprintf(buffer, "Produkt %d: w podajniku: %d", p, w_podajniku);
             raport(NAME, buffer);
         }
     }
-
+    sem_post_logger();
     /* ===== SPRZĄTANIE IPC ===== */
     stop_thread = 1;
     pthread_join(input_thread, NULL);

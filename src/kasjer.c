@@ -16,8 +16,6 @@
 static volatile sig_atomic_t inwentaryzacja = 0;
 static volatile sig_atomic_t ewakuacja = 0;
 
-
-
 sem_t *sem;
 
 produkt_t produkty[10] = {{0, "Rogalik", 2},
@@ -35,7 +33,6 @@ int sprzedane_produkty[10] = {0,0,0,0,0,0,0,0,0,0};
 int kasa_otwarta = 0;
 char paragon[1024];
 
-//shm_data_t *shm;
 void sig_inwentaryzacja(int sig) {
     (void)sig;
     inwentaryzacja = 1;
@@ -61,8 +58,6 @@ void init_fifo(int id) {
 
 }
 
-
-/* Dodaj produkt na podajnik FIFO */
 void sprzedaj_produkt(produkt_t produkt, int ilosc) {
     sprzedane_produkty[produkt.id]+=ilosc;
     char buf[64];
@@ -91,8 +86,6 @@ void podsumowanie(int id){
     sem_post_logger();
 }
 
-
-/* Funkcja główna piekarza */
 int main(int argc, char **argv) {
     if (argc < 2) {
         fprintf(stderr, "Brak argumentu ID\n");
@@ -129,24 +122,17 @@ int main(int argc, char **argv) {
     ioctl(fd_kasa, FIONREAD, &b);
     loguj(NAME, "Kasjer gotowy do pracy");
     paragon[0] = '\0';
-    while ((!ewakuacja && shm->sklep_otwarty) || b > 0) {
+    while ((!ewakuacja && shm->sklep_otwarty==1) || b > 0) {
         fifo_req_t msg;
         kasa_otwarta = shm->kasy_otwarte[id - 1];
 
         ioctl(fd_kasa, FIONREAD, &b);
-
-        // jeśli FIFO puste i kasa zamknięta -> nic nie robimy
         if (b == 0 && !kasa_otwarta) {
             continue;
         }
-
-        // jeśli FIFO puste ale kasa otwarta -> czekamy na klientów
         if (b == 0 && kasa_otwarta) {
-            //usleep(10000); // 10 ms, żeby nie zjeść CPU
             continue;
         }
-
-        // jeśli tu jesteśmy, to jest co czytać
         ssize_t r = read(fd_kasa, &msg, sizeof(msg));
         if (r <= 0) {
             if (r == 0) {
