@@ -16,16 +16,15 @@
 static volatile sig_atomic_t ewakuacja = 0;
 char reply_fifo[64];
 
-/* ================= SYGNALY ================= */
-
+//obsługa sygnału ewakuacji
 void sig_ewakuacja(int sig) {
     (void)sig;
     ewakuacja = 1;
     loguj("KLIENT", "Otrzymano sygnal EWAKUACJA");
 }
 
-/* ================= ZAKUPY ================= */
 
+//Losowanie listy zakupów klienta
 void losuj_zakupy(int zakupy[D_PRODUKTOW]) {
     for (int i = 0; i < D_PRODUKTOW; i++)
         zakupy[i] = 0;
@@ -34,15 +33,27 @@ void losuj_zakupy(int zakupy[D_PRODUKTOW]) {
         zakupy[rand()%D_PRODUKTOW] += 1;
 }
 
+//czyszczenie fifo w razie awarii
 void cleanup() {
     unlink(reply_fifo);
 }
 
 int main() {
+    //obsługa czyszczenia fifo w razie zamkniecia
     atexit(cleanup);
+
     srand(getpid() ^ time(NULL));
+
     sprintf(reply_fifo, "/tmp/klient_%d_fifo", getpid());
-    mkfifo(reply_fifo, 0666);
+
+    //otwarcie fifo dla paragonu
+    if (mkfifo(reply_fifo, 0600))
+    {
+        perror("mkfifo reply_fifo");
+        exit(1);
+    }
+
+    //Połączenie sygnału ewakuacji
     signal(SIGUSR2, sig_ewakuacja);
 
     if (ipc_init(0) == -1) {
@@ -58,21 +69,24 @@ int main() {
     }
 
     /* ===== WEJSCIE DO SKLEPU ===== */
-    
+    //oczekiwanie na opuszczenie semafora do wejscia do sklepu
     loguj(NAME, "Czeka na wejscie do sklepu");
     sem_klientlimit_wait();
-
+    //czyszczenie koszyka
     int koszyk[10] = {0};
     if (!ewakuacja && shm->sklep_otwarty==1)
     {
     loguj(NAME, "Wszedl do sklepu");
+    
 
     /* ===== ZAKUPY ===== */
+
+    //tworzenie listy zakupow
     int zakupy[10] = {0};
     losuj_zakupy(zakupy);
     char buf_zakupy[512];
     int pos = 0;
-
+    
     pos += snprintf(buf_zakupy + pos, sizeof(buf_zakupy) - pos,
                     "Lista zakupow: ");
 
@@ -86,10 +100,11 @@ int main() {
     }
 
     loguj(NAME, buf_zakupy);
-
+    //Pobieranie produktów z podajników
     for (int i = 0; i < D_PRODUKTOW; i++) {
         if (ewakuacja || shm->sklep_otwarty==0) break;
 
+        //Klient idzie po koleji do podajników jeśli ma produkt na swojej liscie
         int p = zakupy[i];
         sem_wait_mem();
         for (int j = 0; j < p; j++) {
@@ -107,11 +122,12 @@ int main() {
             loguj(NAME, buf);
             buf[0] = '\0';
         }
+        //odblokowanie semafora pamięci wsp.
         sem_post_mem();        
     }
 
 
-
+    //obsluga logu w czasie wychodzenia ze sklepu
     if (ewakuacja) {
         loguj(NAME, "Przerwal zakupy i opuszcza sklep");
     } else {
@@ -120,6 +136,7 @@ int main() {
 
 
     }
+    //Jeśli sklep jest zamknięty klient wychodzi ze sklepu
     if (ewakuacja || shm->sklep_otwarty==0) {
 
         unlink(reply_fifo);
@@ -128,7 +145,9 @@ int main() {
         ipc_cleanup(0);
         return 0;
     }
+    //Inaczej klient idzie do kasy
     int b1, b2;
+    //otwarcie fifo kas
     int fd_kasa1 = open(FIFO_KASA1, O_WRONLY | O_NONBLOCK);
     int fd_kasa2 = open(FIFO_KASA2, O_WRONLY | O_NONBLOCK);
     if ((fd_kasa1 == -1 && fd_kasa2 == -1) || shm->sklep_otwarty==0) {
@@ -137,16 +156,18 @@ int main() {
     }
     else
     {
+        //sprawdzenie wielkości kolejek w kasach
         ioctl(fd_kasa1, FIONREAD, &b1);
         ioctl(fd_kasa2, FIONREAD, &b2);
 
+        //utworzenie komunikatu dla fifo
         fifo_req_t msg = {0};
         msg.klient_id = getpid();
         memcpy(msg.produkt_id, koszyk, sizeof(msg.produkt_id));
         strcpy(msg.reply_fifo, reply_fifo);
 
-        strcpy(msg.reply_fifo, reply_fifo);
-        if (b1 > b2) {
+        //Porównanie wielkości kas, klient idzie to kasy z mniejsza kolejka lub do kasy 1 jesli kasa 2 jest zamknieta
+        if (b1 > b2 && shm->kasy_otwarte[1]==1) {
             close(fd_kasa1);
             loguj(NAME, "Idzie do kasy 2");
             if (write(fd_kasa2, &msg, sizeof(msg)) == -1) {
@@ -162,8 +183,13 @@ int main() {
             }
             close(fd_kasa1);
         }
+
+        //oczekiwanie na komunikat powrotny (paragon)
         loguj(NAME, "Czeka na paragon");
         int fd_reply = open(reply_fifo, O_RDONLY);
+        if (fd_reply == -1) {
+            perror("open reply_fifo");
+        }
         loguj(NAME, "Otrzymal paragon");
         char paragon[1024];
         paragon[0] = '\0';
@@ -179,6 +205,7 @@ int main() {
         
     }
     /* ===== WYJSCIE ===== */
+    //opuszczenie sklepu
     sem_klientlimit_post();
     loguj(NAME, "Opuscil sklep");
 
