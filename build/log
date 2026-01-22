@@ -1,0 +1,96 @@
+[17:17:27] PID=2181 KIEROWNIK  | Start procesu
+[17:17:28] PID=2181 KIEROWNIK  | [KIEROWNIK] Symulacja: czas trwania=6 minut
+
+[17:17:28] PID=2182 PIEKARZ    | Start pracy piekarza
+[17:17:28] PID=2183 KASJER     | Kasjer gotowy do pracy
+[17:17:28] PID=2184 KASJER     | Kasjer gotowy do pracy
+[17:17:31] PID=2181 KIEROWNIK  | [KIEROWNIK] otwieram sklep
+
+[17:17:33] PID=2186 KLIENT     | Czeka na wejscie do sklepu
+[17:17:33] PID=2186 KLIENT     | Wszedl do sklepu
+[17:17:33] PID=2186 KLIENT     | Lista zakupow: 1 x 0, 2 x 2, 2 x 5, 1 x 7, 1 x 8, 2 x 9, 
+[17:17:33] PID=2186 KLIENT     | Szukam produktu 0 na podajnikach
+[17:17:33] PID=2186 KLIENT     | Wzial produkt 0
+[17:17:33] PID=2186 KLIENT     | Szukam produktu 2 na podajnikach
+[17:17:33] PID=2186 KLIENT     | Wzial produkt 2
+[17:17:33] PID=2186 KLIENT     | Szukam produktu 2 na podajnikach
+[17:17:33] PID=2186 KLIENT     | Wzial produkt 2
+[17:17:33] PID=2186 KLIENT     | Szukam produktu 5 na podajnikach
+[17:17:33] PID=2186 KLIENT     | Wzial produkt 5
+[17:17:33] PID=2186 KLIENT     | Szukam produktu 5 na podajnikach
+[17:17:33] PID=2186 KLIENT     | Wzial produkt 5
+[17:17:33] PID=2186 KLIENT     | Szukam produktu 7 na podajnikach
+[17:17:33] PID=2186 KLIENT     | Wzial produkt 7
+[17:17:33] PID=2186 KLIENT     | Szukam produktu 8 na podajnikach
+[17:17:33] PID=2186 KLIENT     | Wzial produkt 8
+[17:17:33] PID=2186 KLIENT     | Szukam produktu 9 na podajnikach
+[17:17:33] PID=2186 KLIENT     | Wzial produkt 9
+[17:17:33] PID=2186 KLIENT     | Szukam produktu 9 na podajnikach
+[17:17:33] PID=2186 KLIENT     | Wzial produkt 9
+[17:17:33] PID=2186 KLIENT     | Zakonczyl zakupy i idzie do kasy
+[17:17:33] PID=2186 KLIENT     | Idzie do kasy 1
+[17:17:33] PID=2186 KLIENT     | Czeka na paragon
+[17:17:33] PID=2183 KASJER     | Obsługa klienta...
+[17:17:33] PID=2183 KASJER     | Produkt ID: 0, Ilość: 1
+
+[17:17:33] PID=2183 KASJER     | Sprzedano produkt Rogalik*1
+
+[17:17:33] PID=2186 KLIENT     | Otrzymal paragon
+[17:17:33] PID=2183 KASJER     | id: 0, 1 szt. 2.000000 zł
+
+[17:17:33] PID=2183 KASJER     | Produkt ID: 1, Ilość: 0
+
+[17:17:33] PID=2183 KASJER     | Produkt ID: 2, Ilość: 2
+
+[17:17:33] PID=2183 KASJER     | Sprzedano produkt Babeczka*2
+
+[17:17:33] PID=2183 KASJER     | id: 2, 2 szt. 10.000000 zł
+
+[17:17:33] PID=2183 KASJER     | Produkt ID: 3, Ilość: 0
+
+[17:17:33] PID=2183 KASJER     | Produkt ID: 4, Ilość: 0
+
+[17:17:33] PID=2183 KASJER     | Produkt ID: 5, Ilość: 2
+
+[17:17:33] PID=2183 KASJER     | Sprzedano produkt Makaronik*2
+
+[17:17:33] PID=2183 KASJER     | id: 5, 2 szt. 16.000000 zł
+
+[17:17:33] PID=2183 KASJER     | Produkt ID: 6, Ilość: 0
+
+[17:17:33] PID=2183 KASJER     | Produkt ID: 7, Ilość: 1
+
+[17:17:33] PID=2183 KASJER     | Sprzedano produkt Biszkopcik*1
+
+[17:17:33] PID=2183 KASJER     | id: 7, 1 szt. 6.000000 zł
+
+[17:17:33] PID=2183 KASJER     | Produkt ID: 8, Ilość: 1
+
+[17:17:33] PID=2183 KASJER     | Sprzedano produkt Pierniczek*1
+
+[17:17:33] PID=2183 KASJER     | id: 8, 1 szt. 3.000000 zł
+
+[17:17:33] PID=2183 KASJER     | Produkt ID: 9, Ilość: 2
+
+[17:17:33] PID=2183 KASJER     | Sprzedano produkt Sezamka*2
+
+[17:17:33] PID=2183 KASJER     | id: 9, 2 szt. 8.000000 zł
+
+[17:17:33] PID=2183 KASJER     | Wystawianie paragonu:
+[17:17:33] PID=2186 KLIENT     | PARAGON: id: 0, 1 szt. 2.000000 zł
+id: 2, 2 szt. 10.000000 zł
+id: 5, 2 szt. 16.000000 zł
+id: 7, 1 szt. 6.000000 zł
+id: 8, 1 szt. 3.000000 zł
+id: 9, 2 szt. 8.000000 zł
+
+
+[17:17:33] PID=2186 KLIENT     | Opuscil sklep
+[17:17:34] PID=2181 KIEROWNIK  | Zamykam piekarnię i kasy
+[17:17:34] PID=2184 KASJER     | Koniec pracy kasjera 2
+[17:17:34] PID=2182 PIEKARZ    | Koniec pracy
+[17:17:34] PID=2183 KASJER     | Koniec pracy kasjera 1
+[17:17:34] PID=2181 KIEROWNIK  | Oczekiwanie na zakończenie procesów potomnych
+[17:17:34] PID=2181 KIEROWNIK  | Koniec procesów potomnych
+[17:23:02] PID=2181 KIEROWNIK  | [KIEROWNIK] Zamykanie
+
