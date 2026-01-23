@@ -1,0 +1,29 @@
+[03:08:21] PID=2431 KIEROWNIK  | Start procesu
+[03:08:22] PID=2431 KIEROWNIK  | [KIEROWNIK] Symulacja: czas trwania=2 godzin, pojemność sklepu=10, ilość produktów=10
+
+[03:08:22] PID=2433 KIEROWNIK  | Błąd uruchamiania piekarza
+[03:08:24] PID=2431 KIEROWNIK  | wait mem close shop
+[03:08:24] PID=2431 KIEROWNIK  | end mem close shop
+[03:08:24] PID=2431 KIEROWNIK  | end mem close shop
+[03:08:24] PID=2431 KIEROWNIK  | Produkt 0: wyprodukowano=0 sprzedano=0
+
+[03:08:24] PID=2431 KIEROWNIK  | Produkt 1: wyprodukowano=0 sprzedano=0
+
+[03:08:24] PID=2431 KIEROWNIK  | Produkt 2: wyprodukowano=0 sprzedano=0
+
+[03:08:24] PID=2431 KIEROWNIK  | Produkt 3: wyprodukowano=0 sprzedano=0
+
+[03:08:24] PID=2431 KIEROWNIK  | Produkt 4: wyprodukowano=0 sprzedano=0
+
+[03:08:24] PID=2431 KIEROWNIK  | Produkt 5: wyprodukowano=0 sprzedano=0
+
+[03:08:24] PID=2431 KIEROWNIK  | Produkt 6: wyprodukowano=0 sprzedano=0
+
+[03:08:24] PID=2431 KIEROWNIK  | Produkt 7: wyprodukowano=0 sprzedano=0
+
+[03:08:24] PID=2431 KIEROWNIK  | Produkt 8: wyprodukowano=0 sprzedano=0
+
+[03:08:24] PID=2431 KIEROWNIK  | Produkt 9: wyprodukowano=0 sprzedano=0
+
+[03:08:24] PID=2431 KIEROWNIK  | [KIEROWNIK] Koniec
+
