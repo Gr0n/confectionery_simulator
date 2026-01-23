@@ -13,10 +13,10 @@
 #include <termios.h>
 
 #define LICZBA_KAS 2 // stała liczba kas
-#define D_MAX_LICZBA_KLIENTOW 1024 // maksymalna liczba klientów w systemie
+#define D_MAX_LICZBA_KLIENTOW 5000 // maksymalna liczba klientów w systemie
 #define MAX_KLIENTOW_W_SKLEPIE 10 // maksymalna liczba klientów w sklepie jednocześnie
 #define D_PRODUKTOW 10 // liczba różnych produktów
-#define D_CZAS_TRWANIA 6 // w sekundach
+#define D_CZAS_TRWANIA 60 // w sekundach
 #define D_CZAS_PRZED_OTWARCIEM 2 // w sekundach
 #define NAME "KIEROWNIK" // nazwa procesu do logów
 
@@ -140,22 +140,24 @@ void menu() {
 /*obsługuje zakończenie procesów klientów*/
 void sigchld_handler(int sig) {
     (void)sig;
+    int status;
+    pid_t pid;
 
-    while (1) {
-        int status;
-        pid_t pid = waitpid(-1, &status, WNOHANG);
-        if (pid <= 0) break;
+    // sprzątaj WSZYSTKIE zakończone dzieci
+    while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
 
+        // usuń z tablicy klientów
         for (int i = 0; i < D_MAX_LICZBA_KLIENTOW; i++) {
             if (klient_pid[i] == pid) {
                 klient_pid[i] = 0;
-                
-                printf("[KIEROWNIK] Klient %d wyszedl\n", pid);
                 break;
             }
         }
+
+        printf("[KIEROWNIK] Posprzątano klienta %d\n", pid);
     }
 }
+
 /*funkcja wątku obsługującego wejście użytkownika*/
 void *input_thread_func(void *arg) {
     (void)arg;
@@ -227,7 +229,11 @@ int main() {
     }
 
     //obsługa sygnału SIGCHLD do czyszczenia zakończonych procesów klientów
-    signal(SIGCHLD, sigchld_handler);
+    struct sigaction sa;
+    sa.sa_handler = sigchld_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_RESTART | SA_NOCLDSTOP;
+    sigaction(SIGCHLD, &sa, NULL);
 
     //uruchomienie piekarza i kasjerów
     if (test_mode != 1){
@@ -313,6 +319,7 @@ int main() {
             int rand_num = rand() % 1000000;
             if (rand_num == 0 || test_mode == 3){
                 stworz_klienta();
+                printf("[KIEROWNIK] Utworzono klienta");
             }
             // w trybie testowym 3 zliczanie klientów spamowych
             if (test_mode == 3){
