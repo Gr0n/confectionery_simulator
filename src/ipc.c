@@ -180,6 +180,16 @@ void ipc_cleanup(int remove_all) {
         sem_mem = NULL;
     }
 
+    if (remove_all){
+        if (access(FIFO_KASA1, F_OK) == 0) {
+        unlink(FIFO_KASA1);
+    }
+
+    if (access(FIFO_KASA2, F_OK) == 0) {
+        unlink(FIFO_KASA2);
+    }
+
+    }
     sem_klientlimit_cleanup(remove_all);
     sem_logger_cleanup(remove_all);
 

@@ -294,8 +294,11 @@ int main() {
     int godz_otwarcia = czas_start + D_CZAS_PRZED_OTWARCIEM*1; // w minutach
     
     /*GŁÓWNA PĘTLA KIEROWNIKA*/
-    while (time(NULL) < godz_koniec && !ewakuacja) {
-        
+    while (time(NULL) < godz_koniec) {
+        if (ewakuacja) {
+        // logowanie i cleanup tylko tutaj, nie w handlerze
+        break;
+     }
         //otwarcie semafora pamięci współdzielonej
         sem_wait_mem();
         //pobieranie ilosci klientów w sklepie
@@ -333,7 +336,7 @@ int main() {
             int rand_num = rand() % 1000000;
             if (rand_num == 0 || test_mode == 3){
                 stworz_klienta();
-                printf("[KIEROWNIK] Utworzono klienta");
+                printf("[KIEROWNIK] Utworzono klienta\n");
             }
             // w trybie testowym 3 zliczanie klientów spamowych
             if (test_mode == 3){

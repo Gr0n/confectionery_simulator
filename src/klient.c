@@ -15,7 +15,7 @@
 #define NAME "KLIENT"
 static volatile sig_atomic_t ewakuacja = 0;
 char reply_fifo[64];
-
+int w_sklepie = 0;
 //obsługa sygnału ewakuacji
 void sig_ewakuacja(int sig) {
     (void)sig;
@@ -78,6 +78,7 @@ int main() {
     //oczekiwanie na opuszczenie semafora do wejscia do sklepu
     loguj(NAME, "Czeka na wejscie do sklepu");
     sem_klientlimit_wait();
+    w_sklepie = 1;
     //czyszczenie koszyka
     int koszyk[10] = {0};
     if (!ewakuacja && shm->sklep_otwarty==1)
@@ -157,6 +158,7 @@ int main() {
 
         unlink(reply_fifo);
         sem_klientlimit_post();
+        w_sklepie = 0;
         loguj(NAME, "Opuscil sklep");
         ipc_cleanup(0);
         return 0;
@@ -202,10 +204,20 @@ int main() {
 
         //oczekiwanie na komunikat powrotny (paragon)
         loguj(NAME, "Czeka na paragon");
-        int fd_reply = open(reply_fifo, O_RDONLY);
-        if (fd_reply == -1) {
-            perror("open reply_fifo");
+        int fd_reply;
+
+        while ((fd_reply = open(msg.reply_fifo, O_WRONLY)) == -1) {
+            if (errno == EINTR) {
+                // sygnał przerwał open -> spróbuj jeszcze raz
+                continue;
+            }
+            perror("open fifo reply kasa");
+            fd_reply = -1;
+            break;
         }
+
+        if (fd_reply != -1) 
+        {
         loguj(NAME, "Otrzymal paragon");
         char paragon[1024];
         paragon[0] = '\0';
@@ -218,11 +230,12 @@ int main() {
         
         close(fd_reply);
         unlink(reply_fifo);
-        
+        }
     }
     /* ===== WYJSCIE ===== */
     //opuszczenie sklepu
     sem_klientlimit_post();
+    w sklepie = 0;
     loguj(NAME, "Opuscil sklep");
 
     ipc_cleanup(0);

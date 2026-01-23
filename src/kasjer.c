@@ -159,7 +159,15 @@ int main(int argc, char **argv) {
         if (ioctl(fd_kasa, FIONREAD, &b))
         {
             perror("ioctl FIONREAD");
-            exit(1);
+            break;
+        }
+        if (ewakuacja && b == 0) 
+        {
+            break;
+        }
+        if (!shm->piekarnia_otwarta && b == 0) 
+        {
+            break;
         }
         //sprawdzenie czy kasa jest pusta/otwarta
         if (b == 0 && !kasa_otwarta) {
@@ -221,6 +229,7 @@ int main(int argc, char **argv) {
         close(fd_kasa);
         unlink(FIFO_KASA2);
     }
+    
     ipc_cleanup(0);
     return 0;
 }
