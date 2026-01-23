@@ -11,11 +11,13 @@
 #include "logger.h"
 #include <pthread.h>
 #include <termios.h>
-
+#define D_PRODUKTOW 10 // liczba różnych produktów
 #define LICZBA_KAS 2 // stała liczba kas
+
+
+//Parametry
 #define D_MAX_LICZBA_KLIENTOW 5000 // maksymalna liczba klientów w systemie
 #define MAX_KLIENTOW_W_SKLEPIE 100 // maksymalna liczba klientów w sklepie jednocześnie
-#define D_PRODUKTOW 10 // liczba różnych produktów
 #define D_CZAS_TRWANIA 60 // w sekundach
 #define D_CZAS_PRZED_OTWARCIEM 2 // w sekundach
 #define NAME "KIEROWNIK" // nazwa procesu do logów

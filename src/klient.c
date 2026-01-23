@@ -94,7 +94,7 @@ int main() {
     char kbuf[64];
     int value;
     sem_getvalue(sem_klient, &value);
-    sprintf(kbuf, "Klientów w kolejce do sklepu (+- może ): %d", shm->w_kolejce);
+    sprintf(kbuf, "Klientów w kolejce do sklepu (+- : opóźn. shm ): %d", shm->w_kolejce);
     loguj(NAME, kbuf);
     
     sem_klientlimit_wait();
