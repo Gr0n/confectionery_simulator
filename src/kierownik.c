@@ -158,6 +158,14 @@ void sigchld_handler(int sig) {
     }
 }
 
+static volatile sig_atomic_t ewakuacja = 0;
+
+void sig_ewakuacja(int sig) {
+    (void)sig;
+    ewakuacja = 1;
+    loguj(NAME, "Otrzymano sygnal ewakuacji");
+}
+
 /*funkcja wątku obsługującego wejście użytkownika*/
 void *input_thread_func(void *arg) {
     (void)arg;
@@ -198,6 +206,19 @@ int main() {
     signal(SIGINT, sigint_handler);
     atexit(cleanup);
 
+    //obsługa ewakuacji
+    struct sigaction sa;
+    sa.sa_handler = sig_ewakuacja;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_RESTART;
+    sigaction(SIGUSR2, &sa, NULL);
+
+    //obsługa sygnału SIGCHLD do czyszczenia zakończonych procesów klientów
+    sa.sa_handler = sigchld_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_RESTART | SA_NOCLDSTOP;
+    sigaction(SIGCHLD, &sa, NULL);
+
     printf("[KIEROWNIK] Start procesu\n");
     loguj(NAME, "Start procesu");
 
@@ -227,13 +248,6 @@ int main() {
         loguj(NAME, "Błąd inicjalizacji semafora limitu klientów");
         exit(1);
     }
-
-    //obsługa sygnału SIGCHLD do czyszczenia zakończonych procesów klientów
-    struct sigaction sa;
-    sa.sa_handler = sigchld_handler;
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = SA_RESTART | SA_NOCLDSTOP;
-    sigaction(SIGCHLD, &sa, NULL);
 
     //uruchomienie piekarza i kasjerów
     if (test_mode != 1){
@@ -280,7 +294,7 @@ int main() {
     int godz_otwarcia = czas_start + D_CZAS_PRZED_OTWARCIEM*1; // w minutach
     
     /*GŁÓWNA PĘTLA KIEROWNIKA*/
-    while (time(NULL) < godz_koniec) {
+    while (time(NULL) < godz_koniec && !ewakuacja) {
         
         //otwarcie semafora pamięci współdzielonej
         sem_wait_mem();
