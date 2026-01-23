@@ -96,6 +96,7 @@ void menu() {
     printf("3. Uruchom test 1 (bez piekarza)\n");
     printf("4. Uruchom test 2 (podniesienie semafora klientow do maks)\n");
     printf("5. Uruchom test 3 (Spam klientow)\n");
+    printf("6. Uruchom test 4 (bez klientów)\n");
     printf("Wybierz opcję: ");
     int opt = getchar();
     getchar();
@@ -122,15 +123,19 @@ void menu() {
             break;
         case '3':
             test_mode = 1;
-            printf("Tryb testowy 1 włączony (bez piekarza)\n");
+            printf("Tryb testowy 1 włączony (bez piekarza)\nOczekiwany rezultat: 0 produktów wyprodukowanych\n");
             return;
         case '4':
             test_mode = 2;
-            printf("Tryb testowy 2 włączony (maksymalna liczba klientów)\n");
+            printf("Tryb testowy 2 włączony (zapchany semafor klientów)\nOczekiwany rezultat: Klienci nie wchodza do sklepu\n");
             return;
         case '5':
             test_mode = 3;
-            printf("Tryb testowy 3 włączony (spam klientów)\n");
+            printf("Tryb testowy 3 włączony (spam klientów)\nOczekiwany rezultat: Brak zawieszenia programu\n");
+            return;
+        case '6':
+            test_mode = 4;
+            printf("Tryb testowy 4 włączony (brak klientów)\nOczekiwany rezultat: 0 produktów sprzedanych, zabranych\n");
             return;
         default:
             printf("Nieprawidłowa opcja\n");
@@ -154,7 +159,7 @@ void sigchld_handler(int sig) {
             }
         }
 
-        printf("[KIEROWNIK] Posprzątano klienta %d\n", pid);
+        printf("[KIEROWNIK] Posprzątano proces %d\n", pid);
     }
 }
 
@@ -262,7 +267,7 @@ int main() {
             exit(1);
         }
     }
-    
+    printf("[KIEROWNIK] Utworzono piekarza\n");
     for (int i = 0; i < LICZBA_KAS; i++) {
         kasjer_pid[i] = fork();
         if (kasjer_pid[i] == 0) {
@@ -273,6 +278,7 @@ int main() {
             ipc_cleanup(1);
             exit(1);
         }
+        printf("[KIEROWNIK] Utworzono kasjera: %d\n", i);
     }
     
     //obsługa trybu testowego 2/ maksymalna liczba klientów w sklepie
@@ -337,15 +343,12 @@ int main() {
         if (shm->sklep_otwarty == 1)
         {
             int rand_num = rand() % 1000000;
-            if (rand_num == 0 || test_mode == 3){
+            if ((rand_num == 0 || test_mode == 3) && test_mode!=4){
                 stworz_klienta();
-                printf("[KIEROWNIK] Utworzono klienta\n");
-            }
-            // w trybie testowym 3 zliczanie klientów spamowych
-            if (test_mode == 3){
                 klienci_total++;
-                //printf("[KIEROWNIK] Utworzono klienta spamowego, łącznie: %d\n", klienci_total);
+                printf("[KIEROWNIK] Utworzono klienta: %d\n", klienci_total);
             }
+
         }
     }
     // zamknięcie piekarni i kas
