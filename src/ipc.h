@@ -30,6 +30,7 @@ typedef struct {
     int aktualny_czas;
     int inwentaryzacja;
     int ewakuacja;
+    int w_kolejce;
     int kasy_otwarte[2];
 } shm_data_t;
 

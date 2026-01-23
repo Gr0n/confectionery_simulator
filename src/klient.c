@@ -20,7 +20,15 @@ int w_sklepie = 0;
 void sig_ewakuacja(int sig) {
     (void)sig;
     ewakuacja = 1;
-    loguj("KLIENT", "Otrzymano sygnal EWAKUACJA");
+    if (w_sklepie==0)
+    {
+        unlink(reply_fifo);
+        sem_klientlimit_post();
+        w_sklepie = 0;
+        loguj(NAME, "Ominął sklep");
+        ipc_cleanup(0);
+        exit(0);
+    }
 }
 
 
@@ -50,8 +58,9 @@ int main() {
     signal(SIGINT, sigint_handler);
     srand(getpid() ^ time(NULL));
 
+    //Połączenie sygnału ewakuacji
+    signal(SIGUSR2, sig_ewakuacja);
     sprintf(reply_fifo, "/tmp/klient_%d_fifo", getpid());
-
     //otwarcie fifo dla paragonu
     if (mkfifo(reply_fifo, 0600))
     {
@@ -59,8 +68,6 @@ int main() {
         exit(1);
     }
 
-    //Połączenie sygnału ewakuacji
-    signal(SIGUSR2, sig_ewakuacja);
 
     if (ipc_init(0) == -1) {
         perror("ipc_init klient");
@@ -79,6 +86,7 @@ int main() {
     loguj(NAME, "Czeka na wejscie do sklepu");
     sem_klientlimit_wait();
     w_sklepie = 1;
+    
     //czyszczenie koszyka
     int koszyk[10] = {0};
     if (!ewakuacja && shm->sklep_otwarty==1)
@@ -203,26 +211,30 @@ int main() {
         }
 
         //oczekiwanie na komunikat powrotny (paragon)
-        loguj(NAME, "Czeka na paragon");
-        int fd_reply;
+        //loguj(NAME, "Czeka na paragon");
+        //int fd_reply;
 
-        while ((fd_reply = open(msg.reply_fifo, O_WRONLY)) == -1) {
-            if (errno == EINTR) {
-                // sygnał przerwał open -> spróbuj jeszcze raz
-                continue;
-            }
-            perror("open fifo reply kasa");
-            fd_reply = -1;
-            break;
+        loguj(NAME, "Czeka na paragon");
+        int fd_reply = open(reply_fifo, O_RDONLY);
+        if (fd_reply == -1) {
+            perror("open reply_fifo");
         }
+
 
         if (fd_reply != -1) 
         {
         loguj(NAME, "Otrzymal paragon");
         char paragon[1024];
         paragon[0] = '\0';
-        if (read(fd_reply, paragon, sizeof(paragon)) == -1) {
+        ssize_t r;
+        while (!ewakuacja) {
+            r = read(fd_reply, paragon, sizeof(paragon));
+            if (r > 0) break;
+            if (r == 0) break; // EOF
+            if (errno == EINTR) continue;
+            if (errno == EAGAIN) { continue; }
             perror("read from reply_fifo");
+            break;
         }
         char buf[1024];
         sprintf(buf, "PARAGON: %s\n", paragon);
@@ -235,9 +247,9 @@ int main() {
     /* ===== WYJSCIE ===== */
     //opuszczenie sklepu
     sem_klientlimit_post();
-    w sklepie = 0;
+    w_sklepie = 0;
     loguj(NAME, "Opuscil sklep");
-
+    unlink(reply_fifo);
     ipc_cleanup(0);
     sem_klientlimit_cleanup(0);
     return 0;

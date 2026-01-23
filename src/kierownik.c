@@ -163,7 +163,9 @@ static volatile sig_atomic_t ewakuacja = 0;
 void sig_ewakuacja(int sig) {
     (void)sig;
     ewakuacja = 1;
-    loguj(NAME, "Otrzymano sygnal ewakuacji");
+    for (int i = 0; i < D_MAX_LICZBA_KLIENTOW; i++) {
+        sem_klientlimit_post();
+    }
 }
 
 /*funkcja wątku obsługującego wejście użytkownika*/
@@ -296,9 +298,9 @@ int main() {
     /*GŁÓWNA PĘTLA KIEROWNIKA*/
     while (time(NULL) < godz_koniec) {
         if (ewakuacja) {
-        // logowanie i cleanup tylko tutaj, nie w handlerze
-        break;
-     }
+            loguj(NAME, "Otrzymano sygnal ewakuacji");
+            break;
+        }
         //otwarcie semafora pamięci współdzielonej
         sem_wait_mem();
         //pobieranie ilosci klientów w sklepie
@@ -383,7 +385,6 @@ int main() {
         }
         sem_post_logger();
     }
-    
     // sprzątanie i zakończenie wątku
     stop_thread = 1;
     pthread_join(input_thread, NULL);
