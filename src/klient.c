@@ -98,13 +98,7 @@ int main() {
     loguj(NAME, kbuf);
     
     sem_klientlimit_wait();
-    sem_getvalue(sem_klient, &value);
-    if (!ewakuacja && shm->sklep_otwarty){
-        w_sklepie = 1;
-        char wbuf[64];
-        sprintf(wbuf, "Miejsc wolnych w sklepie : %d", value);
-        loguj(NAME, wbuf);
-    }
+
     sem_wait_mem();
     shm->w_kolejce--;
     sem_post_mem();
@@ -115,7 +109,13 @@ int main() {
     if (!ewakuacja && shm->sklep_otwarty==1)
     {
     loguj(NAME, "Wszedl do sklepu");
-    
+    sem_getvalue(sem_klient, &value);
+    if (!ewakuacja && shm->sklep_otwarty){
+        w_sklepie = 1;
+        char wbuf[64];
+        sprintf(wbuf, "Miejsc wolnych w sklepie : %d", value);
+        loguj(NAME, wbuf);
+    }
 
     /* ===== ZAKUPY ===== */
 
@@ -242,9 +242,7 @@ int main() {
         int fd_reply = open(reply_fifo, O_RDONLY);
         if (fd_reply == -1) {
             perror("open reply_fifo");
-        }}
-
-
+        }
         if (fd_reply != -1) 
         {
         loguj(NAME, "Otrzymal paragon");
@@ -266,7 +264,7 @@ int main() {
         
         close(fd_reply);
         unlink(reply_fifo);
-        }
+        }}
     }
     /* ===== WYJSCIE ===== */
     //opuszczenie sklepu
