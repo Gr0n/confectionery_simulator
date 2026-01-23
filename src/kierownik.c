@@ -14,7 +14,7 @@
 
 #define LICZBA_KAS 2 // stała liczba kas
 #define D_MAX_LICZBA_KLIENTOW 5000 // maksymalna liczba klientów w systemie
-#define MAX_KLIENTOW_W_SKLEPIE 10 // maksymalna liczba klientów w sklepie jednocześnie
+#define MAX_KLIENTOW_W_SKLEPIE 100 // maksymalna liczba klientów w sklepie jednocześnie
 #define D_PRODUKTOW 10 // liczba różnych produktów
 #define D_CZAS_TRWANIA 60 // w sekundach
 #define D_CZAS_PRZED_OTWARCIEM 2 // w sekundach
@@ -344,7 +344,7 @@ int main() {
             // w trybie testowym 3 zliczanie klientów spamowych
             if (test_mode == 3){
                 klienci_total++;
-                printf("[KIEROWNIK] Utworzono klienta spamowego, łącznie: %d\n", klienci_total);
+                //printf("[KIEROWNIK] Utworzono klienta spamowego, łącznie: %d\n", klienci_total);
             }
         }
     }
