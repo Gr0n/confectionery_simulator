@@ -285,6 +285,7 @@ int main() {
     //otwarcie pierwszej kasy
     sem_wait_mem();
     shm->kasy_otwarte[0] = 1;
+    shm->w_kolejce = 0;
     sem_post_mem();
     
     //uruchomienie wątku obsługującego wejście użytkownika

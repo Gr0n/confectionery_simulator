@@ -83,9 +83,32 @@ int main() {
 
     /* ===== WEJSCIE DO SKLEPU ===== */
     //oczekiwanie na opuszczenie semafora do wejscia do sklepu
+    sem_wait_mem();
+    shm->w_kolejce++;
+    sem_post_mem();
+
+    /* ===== WEJSCIE DO SKLEPU ===== */
+    //oczekiwanie na opuszczenie semafora do wejscia do sklepu
+    
     loguj(NAME, "Czeka na wejscie do sklepu");
+    char kbuf[64];
+    int value;
+    sem_getvalue(sem_klient, &value);
+    sprintf(kbuf, "Klientów w kolejce do sklepu (+- może ): %d", shm->w_kolejce);
+    loguj(NAME, kbuf);
+    
     sem_klientlimit_wait();
-    w_sklepie = 1;
+    sem_getvalue(sem_klient, &value);
+    if (!ewakuacja && shm->sklep_otwarty){
+        w_sklepie = 1;
+        char wbuf[64];
+        sprintf(wbuf, "Miejsc wolnych w sklepie : %d", value);
+        loguj(NAME, wbuf);
+    }
+    sem_wait_mem();
+    shm->w_kolejce--;
+    sem_post_mem();
+    
     
     //czyszczenie koszyka
     int koszyk[10] = {0};
@@ -215,10 +238,11 @@ int main() {
         //int fd_reply;
 
         loguj(NAME, "Czeka na paragon");
+        if (shm->sklep_otwarty){
         int fd_reply = open(reply_fifo, O_RDONLY);
         if (fd_reply == -1) {
             perror("open reply_fifo");
-        }
+        }}
 
 
         if (fd_reply != -1) 
