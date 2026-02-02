@@ -39,6 +39,21 @@ void loguj(const char *proces, const char *tekst) {
 
     sem_post_logger();
 }
+void wyczysc_log(void) {
+    FILE *f;
+
+    /* SEKCJA KRYTYCZNA */
+    sem_wait_logger();
+
+    f = fopen(LOG_FILE, "w");  // "w" -> truncate do 0 bajtów
+    if (!f) {
+        sem_post_logger();
+        return;
+    }
+
+    fclose(f);
+    sem_post_logger();
+}
 
 
 //funkcja pisząca do pliku raport

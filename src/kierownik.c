@@ -16,9 +16,9 @@
 
 
 //Parametry
-#define D_MAX_LICZBA_KLIENTOW 5000 // maksymalna liczba klientów w systemie
+#define D_MAX_LICZBA_KLIENTOW 1000 // maksymalna liczba klientów w systemie
 #define MAX_KLIENTOW_W_SKLEPIE 100 // maksymalna liczba klientów w sklepie jednocześnie
-#define D_CZAS_TRWANIA 60 // w sekundach
+#define D_CZAS_TRWANIA 30 // w sekundach
 #define D_CZAS_PRZED_OTWARCIEM 2 // w sekundach
 #define NAME "KIEROWNIK" // nazwa procesu do logów
 
@@ -229,6 +229,7 @@ int main() {
     sigaction(SIGCHLD, &sa, NULL);
 
     printf("[KIEROWNIK] Start procesu\n");
+    wyczysc_log();
     loguj(NAME, "Start procesu");
 
     //wyświetlenie menu
@@ -303,7 +304,7 @@ int main() {
     time_t czas_start = time(NULL);
     int godz_koniec = czas_start + CZAS_TRWANIA*1; // w minutach
     int godz_otwarcia = czas_start + D_CZAS_PRZED_OTWARCIEM*1; // w minutach
-    
+    int t = 0;
     /*GŁÓWNA PĘTLA KIEROWNIKA*/
     while (time(NULL) < godz_koniec) {
         if (ewakuacja) {
@@ -342,6 +343,14 @@ int main() {
         sem_post_mem();
         
         //tworzenie klientów
+    
+
+        if (t==0 && shm->sklep_otwarty == 1)
+        {
+            stworz_klienta();
+            klienci_total++;
+            t=1;
+        }
         if (shm->sklep_otwarty == 1)
         {
             int rand_num = rand() % 1000000;

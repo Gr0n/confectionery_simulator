@@ -79,7 +79,7 @@ void sprzedaj_produkt(produkt_t produkt, int ilosc) {
     sprintf(buf, "Sprzedano produkt %s*%d\n", produkt.name, ilosc);
     loguj(NAME, buf);
     buf[0] = '\0';
-    sprintf(buf, "id: %d, %d szt. %f zł\n", produkt.id, ilosc, produkt.cena*ilosc);
+    sprintf(buf, "id: %d, %d szt. %.2f zł\n", produkt.id, ilosc, produkt.cena*ilosc);
     strcat(paragon, buf);
     loguj(NAME, buf);
 }

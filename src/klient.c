@@ -238,7 +238,7 @@ int main() {
         //int fd_reply;
 
         loguj(NAME, "Czeka na paragon");
-        if (shm->sklep_otwarty){
+        //if (shm->sklep_otwarty){
         int fd_reply = open(reply_fifo, O_RDONLY);
         if (fd_reply == -1) {
             perror("open reply_fifo");
@@ -264,7 +264,7 @@ int main() {
         
         close(fd_reply);
         unlink(reply_fifo);
-        }}
+        }//}
     }
     /* ===== WYJSCIE ===== */
     //opuszczenie sklepu
